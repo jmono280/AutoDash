@@ -2,7 +2,10 @@ services:
   db:
     image: postgres:15-alpine
     restart: unless-stopped
-    env_file: ./backend/.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -15,9 +18,23 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
-    env_file: ./backend/.env
     environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
+      OPENROUTER_MAX_TOKENS_OUT: ${OPENROUTER_MAX_TOKENS_OUT:-512}
+      OPENROUTER_MAX_HISTORY: ${OPENROUTER_MAX_HISTORY:-10}
+      OPENROUTER_MAX_CONTEXT_CHARS: ${OPENROUTER_MAX_CONTEXT_CHARS:-500}
     depends_on:
       db:
         condition: service_healthy
