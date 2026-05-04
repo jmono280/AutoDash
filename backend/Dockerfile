@@ -14,4 +14,4 @@ RUN mkdir -p uploads
 
 EXPOSE 8001
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host https://autodash.gutidevapp.es --port 8001"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"]
