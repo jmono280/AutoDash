@@ -38,7 +38,7 @@ export function useChat() {
         setStreamBuffer('')
       }
     },
-    [messages, context],
+    [messages],
   )
 
   const clear = useCallback(() => {
