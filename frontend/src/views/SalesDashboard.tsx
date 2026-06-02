@@ -146,7 +146,7 @@ export default function SalesDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl bg-gray-200 shadow-sm p-5">
           <ChartHeader
             title="Daily Trend"
             help={{
@@ -166,7 +166,7 @@ export default function SalesDashboard() {
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl bg-gray-200 shadow-sm p-5">
           <ChartHeader
             title="Avg Gross by Day of Week"
             help={{
@@ -186,7 +186,7 @@ export default function SalesDashboard() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-gray-200 shadow-sm p-5">
         <h2 className="mb-4 text-sm font-semibold text-gray-700">Daily Breakdown</h2>
         {list && list.length > 0 ? (
           <DataTable columns={COLUMNS} data={list} pageSize={15} />

@@ -125,7 +125,7 @@ export default function OverviewDashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl bg-gray-200 shadow-sm p-5">
           <ChartHeader
             title="Sales Trend"
             help={{
@@ -145,7 +145,7 @@ export default function OverviewDashboard() {
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl bg-gray-200 shadow-sm p-5">
           <ChartHeader
             title="WIP Aging"
             help={{
@@ -168,7 +168,7 @@ export default function OverviewDashboard() {
       </div>
 
       {/* Top technicians */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-gray-200 shadow-sm p-5">
         <ChartHeader
           title="Top 3 Technicians — Hours Sold"
           help={{
@@ -185,7 +185,7 @@ export default function OverviewDashboard() {
             {top3.map((t, i) => (
               <div key={t.technician_name} className="flex items-center justify-between py-3">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#ffea00] text-xs font-bold text-gray-900">
                     {i + 1}
                   </span>
                   <span className="text-sm font-medium text-gray-800">{t.technician_name}</span>
@@ -193,7 +193,7 @@ export default function OverviewDashboard() {
                 <div className="flex gap-6 text-sm text-gray-600">
                   <span>{parseFloat(t.hours_sold).toFixed(1)} h sold</span>
                   {t.technician_proficiency && (
-                    <span className="text-purple-600 font-medium">
+                    <span className="text-gray-700 font-medium">
                       {parseFloat(t.technician_proficiency).toFixed(1)}% proficiency
                     </span>
                   )}

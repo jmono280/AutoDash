@@ -47,7 +47,7 @@ export default function LoginView() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-200 px-4">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
@@ -56,7 +56,7 @@ export default function LoginView() {
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8">
+        <div className="bg-gray-100 rounded-2xl shadow-md border border-gray-100 p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
             {/* Email */}
             <div>
@@ -69,7 +69,7 @@ export default function LoginView() {
                 autoComplete="email"
                 autoFocus
                 {...register('email')}
-                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow ${
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00] transition-shadow ${
                   errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
                 }`}
                 placeholder="admin@automania.com"
@@ -89,7 +89,7 @@ export default function LoginView() {
                 type="password"
                 autoComplete="current-password"
                 {...register('password')}
-                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow ${
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00] transition-shadow ${
                   errors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'
                 }`}
               />
@@ -109,7 +109,7 @@ export default function LoginView() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-60 transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#ffea00] px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-[#ffea00] focus:ring-offset-2 disabled:opacity-60 transition-colors"
             >
               {busy && <Spinner size="sm" className="w-4 h-4" />}
               {busy ? 'Signing in…' : 'Sign in'}

@@ -53,7 +53,7 @@ function DataTable<T extends object>({
               <tr
                 key={i}
                 onClick={() => onRowClick?.(row)}
-                className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-purple-50' : 'hover:bg-gray-50'}`}
+                className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-yellow-50' : 'hover:bg-gray-50'}`}
               >
                 {columns.map((col) => (
                   <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className ?? ''}`}>

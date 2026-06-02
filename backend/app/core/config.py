@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     OPENROUTER_MAX_HISTORY: int = 10
     OPENROUTER_MAX_CONTEXT_CHARS: int = 500
 
+    # RingCentral — opcionales, solo requeridos para el script analitycs.py
+    RC_APP_CLIENT_ID:     str = ""
+    RC_APP_CLIENT_SECRET: str = ""
+    RC_SERVER_URL:        str = "https://platform.ringcentral.com"
+    RC_USER_JWT:          str = ""
+    RC_EXTENSION_IDS:     str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @model_validator(mode="after")

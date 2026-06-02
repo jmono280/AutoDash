@@ -27,4 +27,9 @@ export const importsApi = {
     api
       .post<ImportResult>('/imports/work-in-progress', buildForm(file))
       .then((r) => r.data),
+
+  uploadPaymentReport: (file: File) =>
+    api
+      .post<ImportResult>('/imports/payment-report', buildForm(file))
+      .then((r) => r.data),
 }

@@ -139,7 +139,7 @@ export default function WorkInProgressDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl bg-gray-200 shadow-sm p-5">
           <ChartHeader
             title="Aging Buckets"
             help={{
@@ -159,7 +159,7 @@ export default function WorkInProgressDashboard() {
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl bg-gray-200 shadow-sm p-5">
           <ChartHeader
             title="By Category"
             help={{
@@ -179,7 +179,7 @@ export default function WorkInProgressDashboard() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-gray-200 shadow-sm p-5">
         <ChartHeader
           title="By Advisor"
           help={{
@@ -199,7 +199,7 @@ export default function WorkInProgressDashboard() {
       </div>
 
       {/* Filters + table */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-white shadow-sm p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <ChartHeader
             title="Open ROs"
@@ -219,12 +219,12 @@ export default function WorkInProgressDashboard() {
               placeholder="Search RO, customer, vehicle…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 w-56"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00] w-56"
             />
             <select
               value={filters.category ?? ''}
               onChange={(e) => setFilters({ ...filters, category: e.target.value || undefined })}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
             >
               <option value="">All categories</option>
               {byCategory?.map((c) => (
@@ -236,7 +236,7 @@ export default function WorkInProgressDashboard() {
             <select
               value={filters.advisor ?? ''}
               onChange={(e) => setFilters({ ...filters, advisor: e.target.value || undefined })}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
             >
               <option value="">All advisors</option>
               {byAdvisor?.map((a) => (

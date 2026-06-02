@@ -122,7 +122,7 @@ export default function HoursDashboard() {
             />
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <div className="rounded-xl bg-gray-200 shadow-sm p-5">
             <ChartHeader
               title="Efficiency & Proficiency"
               help={{
@@ -142,7 +142,7 @@ export default function HoursDashboard() {
         <EmptyState title="No hours data" description="Import an hours summary report to see KPIs." />
       )}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-gray-200 shadow-sm p-5">
         <ChartHeader
           title="Period Records"
           help={{

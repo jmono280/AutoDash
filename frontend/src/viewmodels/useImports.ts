@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { importsApi } from '@/models/importsApi'
+import { callAnalyticsApi } from '@/models/callAnalyticsApi'
 import type { ImportResult } from '@/types/imports'
+import type { FetchResult } from '@/types/callAnalytics'
 
 export function useImports() {
   const queryClient = useQueryClient()
   const [lastResult, setLastResult] = useState<ImportResult | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
+  const [rcFetchResult, setRcFetchResult] = useState<FetchResult | null>(null)
 
   function onSuccess(domain: string) {
     return (result: ImportResult) => {
@@ -45,17 +48,36 @@ export function useImports() {
     onError,
   })
 
+  const rcFetchMutation = useMutation({
+    mutationFn: callAnalyticsApi.fetch,
+    onSuccess: (result) => {
+      setRcFetchResult(result)
+      void queryClient.invalidateQueries({ queryKey: ['callAnalytics'] })
+    },
+  })
+
+  const paymentReportMutation = useMutation({
+    mutationFn: importsApi.uploadPaymentReport,
+    onSuccess: onSuccess('payment'),
+    onError,
+  })
+
   return {
     uploadDailySales: (file: File) => dailySalesMutation.mutateAsync(file),
     uploadHoursSummary: (file: File) => hoursSummaryMutation.mutateAsync(file),
     uploadHoursDetail: (file: File) => hoursDetailMutation.mutateAsync(file),
     uploadWip: (file: File) => wipMutation.mutateAsync(file),
+    uploadPaymentReport: (file: File) => paymentReportMutation.mutateAsync(file),
     lastResult,
     lastError,
+    rcFetchMutation,
+    rcFetchResult,
+    isRcFetchPending: rcFetchMutation.isPending,
     isUploading:
       dailySalesMutation.isPending ||
       hoursSummaryMutation.isPending ||
       hoursDetailMutation.isPending ||
-      wipMutation.isPending,
+      wipMutation.isPending ||
+      paymentReportMutation.isPending,
   }
 }

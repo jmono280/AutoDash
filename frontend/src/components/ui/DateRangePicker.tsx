@@ -14,7 +14,7 @@ export default function DateRangePicker({ value, onChange, className = '' }: Dat
         type="date"
         value={value.from}
         onChange={(e) => onChange({ ...value, from: e.target.value })}
-        className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
       />
       <span className="text-gray-400">–</span>
       <label className="text-sm text-gray-500">To</label>
@@ -23,7 +23,7 @@ export default function DateRangePicker({ value, onChange, className = '' }: Dat
         value={value.to}
         min={value.from}
         onChange={(e) => onChange({ ...value, to: e.target.value })}
-        className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
       />
     </div>
   )

@@ -11,10 +11,23 @@ const NAV_SECTIONS = [
       { to: '/wip',         label: 'Work in Progress' },
     ]
   },
+
+  {
+    title: 'Finanzas',
+    items: [
+      { to: '/payment', label: 'Payment Report' },
+    ]
+  },
+  {
+    title: 'Comunicaciones',
+    items: [
+      { to: '/calls', label: 'Call Analytics' },
+    ]
+  },
   {
     title: 'Administración',
     items: [
-      { to: '/imports',     label: 'Imports' },
+      { to: '/imports', label: 'Imports' },
     ]
   },
   {
@@ -28,8 +41,8 @@ const NAV_SECTIONS = [
 export default function Sidebar() {
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col bg-white border-r border-gray-200">
-      <div className="px-5 py-5 border-b border-gray-100">
-        <span className="text-base font-bold text-gray-900 tracking-tight">Automania</span>
+      <div className="px-5 py-4 border-b border-gray-800 bg-gray-900">
+        <span className="text-base font-bold tracking-tight text-[#ffea00]">Automania</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-4">
@@ -47,8 +60,8 @@ export default function Sidebar() {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-purple-50 text-purple-700'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-yellow-50 text-gray-900 font-semibold border-l-2 border-[#ffea00]'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-2 border-transparent'
                     }`
                   }
                 >

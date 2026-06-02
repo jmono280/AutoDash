@@ -31,7 +31,7 @@ function fmt(value: string | number, format?: KpiCardProps['format']): string {
 
 export default function KpiCard({ label, value, delta, deltaType, format, help, className = '' }: KpiCardProps) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-1 ${className}`}>
+    <div className={`bg-gray-200 rounded-xl border border-gray-200 p-5 flex flex-col gap-1 ${className}`}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
         {help && <HelpTooltip {...help} />}

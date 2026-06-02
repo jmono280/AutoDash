@@ -8,7 +8,9 @@ import OverviewDashboard from '@/views/OverviewDashboard'
 import SalesDashboard from '@/views/SalesDashboard'
 import TechniciansDashboard from '@/views/TechniciansDashboard'
 import WorkInProgressDashboard from '@/views/WorkInProgressDashboard'
+import CallAnalyticsDashboard from '@/views/CallAnalyticsDashboard'
 import ChatView from '@/views/ChatView'
+import PaymentReportDashboard from '@/views/PaymentReportDashboard'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -72,6 +74,22 @@ export default function AppRouter() {
         }
       />
 
+      <Route
+        path="/calls"
+        element={
+          <PrivateRoute>
+            <CallAnalyticsDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/payment"
+        element={
+          <PrivateRoute>
+            <PaymentReportDashboard />
+          </PrivateRoute>
+        }
+      />
       <Route
         path="/chat"
         element={

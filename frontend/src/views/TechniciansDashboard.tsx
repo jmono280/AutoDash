@@ -92,7 +92,7 @@ export default function TechniciansDashboard() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-gray-200 shadow-sm p-5">
         <div className="mb-4 flex items-center justify-between">
           <ChartHeader
             title="Ranking"
@@ -113,7 +113,7 @@ export default function TechniciansDashboard() {
                 onClick={() => setMetric(m.value)}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                   metric === m.value
-                    ? 'bg-purple-600 text-white'
+                    ? 'bg-[#ffea00] text-gray-900 font-semibold'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -129,7 +129,7 @@ export default function TechniciansDashboard() {
         )}
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl bg-gray-200 shadow-sm p-5">
         <ChartHeader
           title="All Technicians"
           help={{

@@ -149,7 +149,7 @@ export default function ChatView() {
             <div
               className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
                 msg.role === 'user'
-                  ? 'bg-purple-600 text-white rounded-br-sm'
+                  ? 'bg-[#ffea00] text-gray-900 rounded-br-sm'
                   : 'bg-gray-100 text-gray-800 rounded-bl-sm'
               }`}
             >
@@ -192,12 +192,12 @@ export default function ChatView() {
           disabled={isLoading}
           placeholder="Escribe tu pregunta… (Enter para enviar, Shift+Enter para nueva línea)"
           onKeyDown={handleKeyDown}
-          className="flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+          className="flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00] disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={isLoading}
-          className="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+          className="rounded-xl bg-[#ffea00] px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-yellow-400 disabled:opacity-50 transition-colors"
         >
           Enviar
         </button>

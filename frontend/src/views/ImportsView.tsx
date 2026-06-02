@@ -146,15 +146,40 @@ function UploadZone({ label, fileType, accept, onUpload }: UploadZoneProps) {
 
 // ── ImportsView ───────────────────────────────────────────────────────────────
 
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function ImportsView() {
   const {
     uploadDailySales,
     uploadHoursSummary,
     uploadHoursDetail,
     uploadWip,
+    uploadPaymentReport,
     isUploading,
     lastResult,
+    rcFetchMutation,
+    rcFetchResult,
+    isRcFetchPending,
   } = useImports()
+
+  const [fetchMode, setFetchMode]   = useState<'single' | 'range'>('single')
+  const [singleDate, setSingleDate] = useState(todayStr())
+  const [rangeFrom, setRangeFrom]   = useState(todayStr())
+  const [rangeTo, setRangeTo]       = useState(todayStr())
+
+  function handleFetch() {
+    const body =
+      fetchMode === 'single'
+        ? { time_from: `${singleDate}T00:00:00Z`, time_to: `${singleDate}T23:59:59Z` }
+        : { time_from: `${rangeFrom}T00:00:00Z`,  time_to: `${rangeTo}T23:59:59Z` }
+    rcFetchMutation.mutate(body)
+  }
+
+  const fetchDisabled =
+    isRcFetchPending ||
+    (fetchMode === 'single' ? !singleDate : !rangeFrom || !rangeTo)
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -197,11 +222,98 @@ export default function ImportsView() {
           accept=".xlsx"
           onUpload={uploadWip}
         />
+        <UploadZone
+          label="Payment Report"
+          fileType="Excel (.xlsx)"
+          accept=".xlsx"
+          onUpload={uploadPaymentReport}
+        />
       </div>
 
       {isUploading && (
         <p className="text-center text-xs text-gray-400">Upload in progress…</p>
       )}
+
+      {/* ── RingCentral ───────────────────────────────────────────────────── */}
+      <div className="rounded-xl bg-white shadow-sm p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-1">RingCentral — Call Analytics</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Descarga datos de llamadas desde RingCentral y guárdalos en la base de datos.
+        </p>
+
+        <div className="flex gap-3 mb-4">
+          {(['single', 'range'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setFetchMode(mode)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                fetchMode === mode
+                  ? 'bg-[#ffea00] text-gray-900 font-semibold'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {mode === 'single' ? 'Fecha única' : 'Rango de fechas'}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          {fetchMode === 'single' ? (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">Fecha</label>
+              <input
+                type="date"
+                value={singleDate}
+                onChange={(e) => setSingleDate(e.target.value)}
+                className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500">Desde</label>
+                <input
+                  type="date"
+                  value={rangeFrom}
+                  onChange={(e) => setRangeFrom(e.target.value)}
+                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500">Hasta</label>
+                <input
+                  type="date"
+                  value={rangeTo}
+                  min={rangeFrom}
+                  onChange={(e) => setRangeTo(e.target.value)}
+                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
+                />
+              </div>
+            </>
+          )}
+          <button
+            onClick={handleFetch}
+            disabled={fetchDisabled}
+            className="rounded-md bg-[#ffea00] px-4 py-1.5 text-sm font-medium text-gray-900 hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isRcFetchPending ? 'Descargando…' : 'Descargar datos'}
+          </button>
+        </div>
+
+        {rcFetchResult && !isRcFetchPending && (
+          <p className="mt-3 text-sm text-emerald-600">
+            ✓ {rcFetchResult.rows_saved} registros guardados —{' '}
+            {rcFetchResult.time_from.slice(0, 10)}
+            {rcFetchResult.time_from.slice(0, 10) !== rcFetchResult.time_to.slice(0, 10) &&
+              ` al ${rcFetchResult.time_to.slice(0, 10)}`}
+          </p>
+        )}
+        {rcFetchMutation.isError && (
+          <p className="mt-3 text-sm text-red-600">
+            Error: {(rcFetchMutation.error as Error)?.message ?? 'No se pudo conectar con RingCentral'}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

@@ -53,31 +53,51 @@ Ejecuta los scripts antes de arrancar el servidor por primera vez.
 # Admin — acceso completo + endpoints de importación
 python -m app.scripts.seed_admin
 # Con credenciales personalizadas:
-python -m app.scripts.seed_admin admin@automania.com password123 "Admin"
+python -m app.scripts.seed_admin email@email.com yourpass "Admin"
 
 # Viewer — solo lectura, sin importaciones
 python -m app.scripts.seed_viewer
 # Con credenciales personalizadas:
 python -m app.scripts.seed_viewer viewer@automania.com viewer123 "Viewer"
+
+#Directamente en docker 
+docker ps | grep backend
+docker exec backend-rgzdqufvrwyrd4y32gql396x-141317371249 python -m app.scripts.seed_admin
+
+## Desarrollo local (DB en Docker)
+
+Para desarrollo, levanta solo PostgreSQL en Docker y corre el backend directamente:
+
+```bash
+# 1. Levantar solo la base de datos (desde la raíz del repo)
+docker compose -f docker-compose.dev.yaml up -d
+
+# 2. Aplicar migraciones (primera vez o tras cambios en modelos)
+cd backend
+source venv/bin/activate
+alembic upgrade head
+
+# 3. Crear usuario admin (solo la primera vez)
+python -m app.scripts.seed_admin
+
+# 4. Arrancar backend
+uvicorn app.main:app --reload --port 8001
+# Docs interactivas: http://localhost:8001/docs
+
+# Al terminar, parar la base de datos
+docker compose -f docker-compose.dev.yaml down
 ```
 
-| Email | Password | Rol |
-|---|---|---|
-| admin@automania.com | password123 | admin |
-| viewer@automania.com | viewer123 | viewer |
-
-Los scripts son idempotentes: si el usuario ya existe, imprimen un aviso sin duplicar.
+Las credenciales del DB de desarrollo son `postgres`/`postgres`/`automania_db` — ya están configuradas en `backend/.env`.
 
 ---
 
 ## Arrancar el servidor
 
 ```bash
-uvicorn app.main:app --reload --port 8000
-# Docs interactivas: http://localhost:8000/docs
+uvicorn app.main:app --reload --port 8001
+# Docs interactivas: http://localhost:8001/docs
 ```
-
-> Si el puerto 8000 está ocupado (Portainer u otro servicio), usa `--port 8001`.
 
 ---
 
@@ -90,7 +110,7 @@ Todos los ejemplos asumen el servidor en `http://localhost:8000`. Ajusta el puer
 ```bash
 TOKEN=$(curl -sX POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@automania.com","password":"password123"}' \
+  -d '{"email":"email@email.com","password":"yourpass"}' \
   | jq -r .access_token)
 ```
 
@@ -104,7 +124,7 @@ curl http://localhost:8000/auth/me \
 # Renovar token con refresh_token
 REFRESH=$(curl -sX POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@automania.com","password":"password123"}' \
+  -d '{"email":"email@email.com","password":"yourpass"}' \
   | jq -r .refresh_token)
 
 curl -sX POST http://localhost:8000/auth/refresh \
@@ -369,7 +389,7 @@ El endpoint usa **OpenRouter** (compatible con la API de OpenAI). Requiere `OPEN
 ```bash
 TOKEN=$(curl -sX POST http://localhost:8001/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@automania.com","password":"password123"}' \
+  -d '{"email":"email@email.com","password":"yourpass"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 ```
 
