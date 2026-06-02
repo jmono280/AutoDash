@@ -20,8 +20,8 @@ class CallAnalyticsRepository:
         q = (
             select(CallAnalytics)
             .where(
-                CallAnalytics.time_from >= date_from,
-                CallAnalytics.time_to   <= date_to,
+                CallAnalytics.time_from <= date_to,
+                CallAnalytics.time_to   >= date_from,
                 CallAnalytics.deleted_at.is_(None),
             )
             .order_by(CallAnalytics.time_from, CallAnalytics.extension_number)
@@ -50,8 +50,8 @@ class CallAnalyticsRepository:
                 func.coalesce(func.sum(CallAnalytics.duration_seconds), 0).label("total_duration_seconds"),
                 func.count(func.distinct(CallAnalytics.extension_number)).label("extension_count"),
             ).where(
-                CallAnalytics.time_from >= date_from,
-                CallAnalytics.time_to   <= date_to,
+                CallAnalytics.time_from <= date_to,
+                CallAnalytics.time_to   >= date_from,
                 CallAnalytics.deleted_at.is_(None),
             )
         )
@@ -79,8 +79,8 @@ class CallAnalyticsRepository:
                 func.sum(CallAnalytics.duration_seconds).label("duration_seconds"),
             )
             .where(
-                CallAnalytics.time_from >= date_from,
-                CallAnalytics.time_to   <= date_to,
+                CallAnalytics.time_from <= date_to,
+                CallAnalytics.time_to   >= date_from,
                 CallAnalytics.deleted_at.is_(None),
             )
             .group_by(CallAnalytics.extension_number)

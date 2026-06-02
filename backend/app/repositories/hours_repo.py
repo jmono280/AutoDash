@@ -15,8 +15,8 @@ class HoursSummaryRepository:
         result = await db.execute(
             select(HoursSummary)
             .where(
-                HoursSummary.period_start >= start,
-                HoursSummary.period_end <= end,
+                HoursSummary.period_start <= end,
+                HoursSummary.period_end >= start,
                 HoursSummary.deleted_at.is_(None),
             )
             .order_by(HoursSummary.period_start)
@@ -46,8 +46,8 @@ class HoursSummaryRepository:
                 func.avg(HoursSummary.technician_efficiency).label("technician_efficiency"),
                 func.max(HoursSummary.imported_at).label("imported_at"),
             ).where(
-                HoursSummary.period_start >= start,
-                HoursSummary.period_end <= end,
+                HoursSummary.period_start <= end,
+                HoursSummary.period_end >= start,
                 HoursSummary.deleted_at.is_(None),
             )
         )

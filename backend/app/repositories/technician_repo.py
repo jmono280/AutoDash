@@ -21,8 +21,8 @@ class TechnicianRepository:
         result = await db.execute(
             select(TechnicianHours)
             .where(
-                TechnicianHours.period_start >= start,
-                TechnicianHours.period_end <= end,
+                TechnicianHours.period_start <= end,
+                TechnicianHours.period_end >= start,
                 TechnicianHours.deleted_at.is_(None),
             )
             .order_by(TechnicianHours.technician_name)
@@ -40,8 +40,8 @@ class TechnicianRepository:
         result = await db.execute(
             select(TechnicianHours)
             .where(
-                TechnicianHours.period_start >= start,
-                TechnicianHours.period_end <= end,
+                TechnicianHours.period_start <= end,
+                TechnicianHours.period_end >= start,
                 TechnicianHours.deleted_at.is_(None),
             )
             .order_by(order_col.desc().nulls_last())
@@ -55,8 +55,8 @@ class TechnicianRepository:
             select(TechnicianHours)
             .where(
                 TechnicianHours.technician_name == name,
-                TechnicianHours.period_start >= start,
-                TechnicianHours.period_end <= end,
+                TechnicianHours.period_start <= end,
+                TechnicianHours.period_end >= start,
                 TechnicianHours.deleted_at.is_(None),
             )
             .order_by(TechnicianHours.period_start)

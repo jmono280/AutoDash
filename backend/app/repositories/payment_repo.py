@@ -25,8 +25,8 @@ class PaymentRepository:
             select(PaymentTransaction)
             .where(
                 PaymentTransaction.deleted_at.is_(None),
-                PaymentTransaction.period_start >= from_date,
-                PaymentTransaction.period_end <= to_date,
+                func.date(PaymentTransaction.payment_date) >= from_date,
+                func.date(PaymentTransaction.payment_date) <= to_date,
             )
             .order_by(PaymentTransaction.payment_date.desc())
         )
@@ -46,8 +46,8 @@ class PaymentRepository:
     ) -> int:
         q = select(func.count(PaymentTransaction.id)).where(
             PaymentTransaction.deleted_at.is_(None),
-            PaymentTransaction.period_start >= from_date,
-            PaymentTransaction.period_end <= to_date,
+            func.date(PaymentTransaction.payment_date) >= from_date,
+            func.date(PaymentTransaction.payment_date) <= to_date,
         )
         if collector:
             q = q.where(PaymentTransaction.collector == collector)
@@ -65,8 +65,8 @@ class PaymentRepository:
                 func.coalesce(func.avg(PaymentTransaction.amount), 0).label("avg_payment_amount"),
             ).where(
                 PaymentTransaction.deleted_at.is_(None),
-                PaymentTransaction.period_start >= from_date,
-                PaymentTransaction.period_end <= to_date,
+                func.date(PaymentTransaction.payment_date) >= from_date,
+                func.date(PaymentTransaction.payment_date) <= to_date,
             )
         )
         row = result.one()
@@ -90,8 +90,8 @@ class PaymentRepository:
             )
             .where(
                 PaymentTransaction.deleted_at.is_(None),
-                PaymentTransaction.period_start >= from_date,
-                PaymentTransaction.period_end <= to_date,
+                func.date(PaymentTransaction.payment_date) >= from_date,
+                func.date(PaymentTransaction.payment_date) <= to_date,
                 PaymentTransaction.collector.isnot(None),
             )
             .group_by(PaymentTransaction.collector)
@@ -110,8 +110,8 @@ class PaymentRepository:
             )
             .where(
                 PaymentTransaction.deleted_at.is_(None),
-                PaymentTransaction.period_start >= from_date,
-                PaymentTransaction.period_end <= to_date,
+                func.date(PaymentTransaction.payment_date) >= from_date,
+                func.date(PaymentTransaction.payment_date) <= to_date,
                 PaymentTransaction.payment_method.isnot(None),
             )
             .group_by(PaymentTransaction.payment_method)
@@ -122,12 +122,13 @@ class PaymentRepository:
     async def list_collection_stats(
         self, db: AsyncSession, *, from_date: date, to_date: date
     ) -> list[CollectionStat]:
+        # Use overlapping range: any stats period that intersects the selected range
         result = await db.execute(
             select(CollectionStat)
             .where(
                 CollectionStat.deleted_at.is_(None),
-                CollectionStat.period_start >= from_date,
-                CollectionStat.period_end <= to_date,
+                CollectionStat.period_start <= to_date,
+                CollectionStat.period_end >= from_date,
             )
             .order_by(CollectionStat.payments_amount.desc())
         )
