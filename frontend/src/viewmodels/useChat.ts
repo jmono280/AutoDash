@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { chatApi } from '@/models/chatApi'
 import type { ChatMessage } from '@/types/chat'
 
-export function useChat(context?: string) {
+export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streamBuffer, setStreamBuffer] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -19,7 +19,7 @@ export function useChat(context?: string) {
 
       let accumulated = ''
       try {
-        for await (const chunk of chatApi.stream({ messages: nextMessages, context })) {
+        for await (const chunk of chatApi.stream({ messages: nextMessages })) {
           if (chunk.error) {
             setError(chunk.detail ?? chunk.error)
             break
