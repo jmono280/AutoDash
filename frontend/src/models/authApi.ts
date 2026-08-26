@@ -1,5 +1,10 @@
 import api from './api'
-import type { TokenResponse, User } from '@/types/auth'
+import type {
+  MessageResponse,
+  PasswordChangeData,
+  TokenResponse,
+  User,
+} from '@/types/auth'
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -14,4 +19,7 @@ export const authApi = {
 
   logout: () =>
     api.post<{ message: string }>('/auth/logout').then((r) => r.data),
+
+  changePassword: (data: PasswordChangeData) =>
+    api.post<MessageResponse>('/auth/change-password', data).then((r) => r.data),
 }

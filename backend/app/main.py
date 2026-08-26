@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import analytics, auth, chat, hours, imports, payment_report, sales, technicians, wip
+from app.routers import analytics, auth, chat, hours, idms, imports, payment_report, sales, technicians, wip
 
 app = FastAPI(title="Automania Dashboard API")
 
@@ -25,6 +25,7 @@ app.include_router(wip.router, prefix="/wip", tags=["wip"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(analytics.router, prefix="/analytics/calls", tags=["analytics"])
 app.include_router(payment_report.router, prefix="/payment", tags=["payment"])
+app.include_router(idms.router, prefix="/idms", tags=["idms"])
 
 
 @app.get("/")

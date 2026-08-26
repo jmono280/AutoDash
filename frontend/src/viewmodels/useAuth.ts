@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/models/authApi'
 import { useAuthStore } from '@/store/authStore'
+import type { PasswordChangeData } from '@/types/auth'
 
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(false)
@@ -33,4 +35,15 @@ export function useAuth() {
   }
 
   return { user, isAuthenticated, login, logout, isLoading }
+}
+
+export function useChangePassword() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: PasswordChangeData) => authApi.changePassword(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+    },
+  })
 }

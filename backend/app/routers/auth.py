@@ -6,7 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user
 from app.database import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    MessageResponse,
+    PasswordChangeRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserOut,
+)
 from app.services.auth_service import AuthService
 
 router = APIRouter()
@@ -46,3 +53,18 @@ async def me(
     service: AuthService = Depends(_service),
 ) -> UserOut:
     return service.get_me(current_user)
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    req: PasswordChangeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    service: AuthService = Depends(_service),
+) -> MessageResponse:
+    return await service.change_password(
+        db,
+        current_user,
+        req.current_password,
+        req.new_password,
+    )

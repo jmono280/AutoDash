@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 
 interface NavbarProps {
@@ -9,7 +10,12 @@ export default function Navbar({ onLogout }: NavbarProps) {
 
   return (
     <header className="h-14 flex-shrink-0 flex items-center justify-end gap-4 px-6 border-b border-gray-800 bg-gray-900">
-      <span className="text-sm text-gray-300">{user?.full_name ?? user?.email}</span>
+      <Link
+        to="/profile"
+        className="text-sm text-gray-300 hover:text-[#ffea00] transition-colors"
+      >
+        {user?.full_name ?? user?.email}
+      </Link>
       <button
         onClick={onLogout}
         className="text-sm font-medium text-gray-400 hover:text-[#ffea00] transition-colors"

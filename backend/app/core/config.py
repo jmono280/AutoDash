@@ -28,8 +28,35 @@ class Settings(BaseSettings):
     RC_APP_CLIENT_ID:     str = ""
     RC_APP_CLIENT_SECRET: str = ""
     RC_SERVER_URL:        str = "https://platform.ringcentral.com"
-    RC_USER_JWT:          str = ""
+    RC_USER_JWT:        str = ""
     RC_EXTENSION_IDS:     str = ""
+
+    # IDMS / AutoAnalytix
+    IDMS_URL: str = "https://idms.dealersocket.com"
+    IDMS_USERNAME: str = ""
+    IDMS_PASSWORD: str = ""
+    IDMS_DEVICE_KEY: str | None = None
+    IDMS_CLIENT_KEY_API: str | None = None
+
+    @property
+    def idms_url(self) -> str:
+        return self.IDMS_URL
+
+    @property
+    def idms_username(self) -> str:
+        return self.IDMS_USERNAME
+
+    @property
+    def idms_password(self) -> str:
+        return self.IDMS_PASSWORD
+
+    @property
+    def idms_device_key(self) -> str | None:
+        return self.IDMS_DEVICE_KEY
+
+    @property
+    def idms_client_key_api(self) -> str | None:
+        return self.IDMS_CLIENT_KEY_API
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

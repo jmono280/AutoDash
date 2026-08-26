@@ -72,7 +72,7 @@ export default function LoginView() {
                 className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00] transition-shadow ${
                   errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
                 }`}
-                placeholder="admin@automania.com"
+                placeholder="user@company.com"
               />
               {errors.email && (
                 <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>

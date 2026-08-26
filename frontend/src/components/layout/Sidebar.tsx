@@ -1,6 +1,21 @@
 import { NavLink } from 'react-router-dom'
+import { useAuthStore } from '@/store/authStore'
+import { hasRole } from '@/lib/permissions'
+import type { UserRole } from '@/types/auth'
 
-const NAV_SECTIONS = [
+interface NavItem {
+  to: string
+  label: string
+  exact?: boolean
+  roles?: UserRole[]
+}
+
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Taller',
     items: [
@@ -15,7 +30,8 @@ const NAV_SECTIONS = [
   {
     title: 'Finanzas',
     items: [
-      { to: '/payment', label: 'Payment Report' },
+      { to: '/payment', label: 'Payment Report', roles: ['admin'] },
+      { to: '/idms-reports', label: 'IDMS Reports' },
     ]
   },
   {
@@ -27,18 +43,27 @@ const NAV_SECTIONS = [
   {
     title: 'Administración',
     items: [
-      { to: '/imports', label: 'Imports' },
+      { to: '/imports', label: 'Imports', roles: ['admin'] },
     ]
   },
   {
     title: 'Asistente IA',
     items: [
-      { to: '/chat', label: 'Chat' },
+      { to: '/chat', label: 'Chat', roles: ['admin'] },
     ]
   }
 ]
 
 export default function Sidebar() {
+  const user = useAuthStore((s) => s.user)
+
+  const visibleSections = NAV_SECTIONS
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => hasRole(user, item.roles)),
+    }))
+    .filter((section) => section.items.length > 0)
+
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col bg-white border-r border-gray-200">
       <div className="px-5 py-4 border-b border-gray-800 bg-gray-900">
@@ -46,7 +71,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-4">
-        {NAV_SECTIONS.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title} className="space-y-1">
             <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
               {section.title}

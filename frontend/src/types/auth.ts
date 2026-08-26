@@ -24,3 +24,12 @@ export interface TokenResponse {
 export interface RefreshRequest {
   refresh_token: string
 }
+
+export interface PasswordChangeData {
+  current_password: string
+  new_password: string
+}
+
+export interface MessageResponse {
+  message: string
+}

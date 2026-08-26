@@ -12,7 +12,13 @@ from app.core.security import (
 )
 from app.models.user import User, UserRole
 from app.repositories.user_repo import UserRepository
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    MessageResponse,
+    RefreshRequest,
+    TokenResponse,
+    UserOut,
+)
 
 
 class AuthService:
@@ -58,6 +64,23 @@ class AuthService:
 
     def get_me(self, current_user: User) -> UserOut:
         return UserOut.model_validate(current_user)
+
+    async def change_password(
+        self,
+        db: AsyncSession,
+        current_user: User,
+        current_password: str,
+        new_password: str,
+    ) -> MessageResponse:
+        if not verify_password(current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contraseña actual incorrecta",
+            )
+
+        hashed = hash_password(new_password)
+        await self.repo.update_password(db, current_user, hashed)
+        return MessageResponse(message="Contraseña actualizada correctamente")
 
     async def register(
         self,
