@@ -158,9 +158,10 @@ npm run dev
 
 ### Media prioridad
 
-- [ ] **Arreglar `npm run build` del frontend**
-  - Error previo en `tsconfig.app.json`: `"ignoreDeprecations": "6.0"` no es válido en la versión de TypeScript instalada.
-  - `npm run dev` funciona; el build de producción falla.
+- [x] **Arreglar `npm run build` del frontend**
+  - Se quitó `"ignoreDeprecations": "6.0"` de `tsconfig.app.json` (no suprimía ninguna deprecación real, solo rompía el build con TS 5.8.3).
+  - Además había una función muerta (`todayStr`) en `CallAnalyticsDashboard.tsx` rechazada por `noUnusedLocals`; se eliminó.
+  - `npm run build` compila limpio (solo queda un warning no bloqueante de tamaño de chunk en `vite build`).
 
 - [ ] **Mejorar manejo de sesión IDMS**
   - Actualmente requiere OTP la primera vez si el device key no evita el challenge.

@@ -29,10 +29,6 @@ function dateToIsoRange(from: string, to: string): IsoRange {
   }
 }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function isoToDate(iso: string): string {
   return iso.slice(0, 10)
 }
