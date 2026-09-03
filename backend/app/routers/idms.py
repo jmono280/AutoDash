@@ -9,8 +9,10 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.idms import (
     IdmsChargeOffKpisOut,
+    IdmsChargeOffMonthlyDetailOut,
     IdmsChargeOffMonthlyOut,
     IdmsChargeOffOut,
+    IdmsChargeOffOverviewOut,
     IdmsSessionStatusOut,
     IdmsSyncOut,
 )
@@ -121,3 +123,36 @@ async def get_charge_off_years(
     _: User = Depends(get_current_user),
 ) -> list[int]:
     return await service.get_available_years(db)
+
+
+@router.get("/charge-offs/overview", response_model=IdmsChargeOffOverviewOut)
+async def get_charge_off_overview(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsChargeOffOverviewOut:
+    data = await service.get_charge_off_overview(db, year=year)
+    return IdmsChargeOffOverviewOut(**data)
+
+
+@router.get(
+    "/charge-offs/monthly-detail", response_model=list[IdmsChargeOffMonthlyDetailOut]
+)
+async def get_charge_off_monthly_detail(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsChargeOffMonthlyDetailOut]:
+    rows = await service.get_charge_off_monthly_detail(db, year=year)
+    return [IdmsChargeOffMonthlyDetailOut(**r) for r in rows]
+
+
+@router.post("/month-end/sync", response_model=IdmsSyncOut)
+async def sync_month_end(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsSyncOut:
+    return await service.sync_month_end(db)

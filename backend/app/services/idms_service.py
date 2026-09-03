@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.importers.idms_client import IdmsClient, MfaRequired
-from app.importers.idms_parsers import IDMS_CHARGE_OFF_REPORT_ID, parse_report
+from app.importers.idms_parsers import (
+    IDMS_CHARGE_OFF_REPORT_ID,
+    IDMS_MONTH_END_REPORT_ID,
+    parse_aa_month_end,
+    parse_report,
+)
 from app.repositories.idms_repo import IdmsRepository
 from app.schemas.idms import IdmsSyncOut
 
@@ -75,3 +82,32 @@ class IdmsService:
 
     async def get_available_years(self, db: AsyncSession) -> list[int]:
         return await self.repo.get_available_years(db)
+
+    async def get_charge_off_overview(self, db: AsyncSession, year: int):
+        return await self.repo.get_charge_off_overview(db, year)
+
+    async def get_charge_off_monthly_detail(self, db: AsyncSession, year: int):
+        return await self.repo.get_charge_off_monthly_detail(db, year)
+
+    # ------------------------------------------------------------------
+    # Month End (snapshot de cartera)
+    # ------------------------------------------------------------------
+    async def sync_month_end(self, db: AsyncSession) -> IdmsSyncOut:
+        """Toma la foto de la cartera de hoy y la guarda como el mes corriente."""
+        snapshot = date.today()
+        client = IdmsClient()
+        client.login()
+        raw = client.export_csv(IDMS_MONTH_END_REPORT_ID, export_type="csv")
+        rows = parse_aa_month_end(raw, snapshot)
+        inserted = await self.repo.sync_month_end(
+            db, rows, year=snapshot.year, month=snapshot.month
+        )
+        return IdmsSyncOut(
+            report_id=IDMS_MONTH_END_REPORT_ID,
+            year=snapshot.year,
+            rows_inserted=inserted,
+            message=(
+                f"{inserted} cuentas en el snapshot de "
+                f"{snapshot.strftime('%m/%Y')}"
+            ),
+        )

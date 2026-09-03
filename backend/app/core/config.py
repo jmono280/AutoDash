@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     def idms_client_key_api(self) -> str | None:
         return self.IDMS_CLIENT_KEY_API
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":

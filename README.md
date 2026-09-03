@@ -253,3 +253,22 @@ Para cambiar puertos, exportar antes de levantar:
 export FRONTEND_PORT=3000
 docker compose --env-file ./backend/.env up -d
 ```
+
+## subir historicos al servidor
+```bash
+    Comandos completos (Opción C)
+    # 1. Login y obtener token
+    TOKEN=$(curl -s -X POST https://autodash.gutidevapp.es/api/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"admin@automania.com","password":"password123"}' | jq -r .access_token)
+
+    # 2. Subir Excel histórico
+
+    curl -X POST https://autodash.gutidevapp.es/api/idms/charge-offs/import-historical \
+    -H "Authorization: Bearer $TOKEN" \
+    -F "file=@/ruta/local/Auto Analytix - Charge Offs - Manual Pull.xlsx"
+    Importante: el backend en Coolify está bajo /api/, por eso las URLs son /api/auth/login y /api/idms/....
+    Verificar
+    curl -s https://autodash.gutidevapp.es/api/idms/charge-offs/years \
+    -H "Authorization: Bearer $TOKEN" | jq
+```

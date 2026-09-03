@@ -4,6 +4,7 @@ from .collection_stat import CollectionStat
 from .daily_sales import DailySales
 from .hours_summary import HoursSummary
 from .idms_charge_off import IdmsChargeOff
+from .idms_month_end import IdmsMonthEnd
 from .payment_transaction import PaymentTransaction
 from .technician_hours import TechnicianHours
 from .user import User, UserRole
@@ -22,4 +23,5 @@ __all__ = [
     "PaymentTransaction",
     "CollectionStat",
     "IdmsChargeOff",
+    "IdmsMonthEnd",
 ]

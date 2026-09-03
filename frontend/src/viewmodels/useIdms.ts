@@ -33,31 +33,43 @@ export function useIdms() {
     },
   })
 
-  const kpisQuery = useQuery({
-    queryKey: ['idms', 'charge-offs', 'kpis', activeYear],
-    queryFn: () => idmsApi.getChargeOffKpis(activeYear!),
-    enabled: activeYear !== null,
+  // El snapshot de cartera es lo que habilita Gross C/O Ratio y Months On Book.
+  const syncMonthEndMutation = useMutation({
+    mutationFn: () => idmsApi.syncMonthEnd(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['idms', 'charge-offs'] })
+    },
+  })
+
+  const overviewQuery = useQuery({
+    queryKey: ['idms', 'charge-offs', 'overview', activeYear],
+    queryFn: () => idmsApi.getChargeOffOverview(activeYear),
   })
 
   const monthlyQuery = useQuery({
-    queryKey: ['idms', 'charge-offs', 'monthly', activeYear],
-    queryFn: () => idmsApi.getChargeOffMonthly(activeYear!),
-    enabled: activeYear !== null,
+    queryKey: ['idms', 'charge-offs', 'monthly-detail', activeYear],
+    queryFn: () => idmsApi.getChargeOffMonthlyDetail(activeYear),
+  })
+
+  // Año anterior: solo para superponer la serie en la gráfica.
+  const priorMonthlyQuery = useQuery({
+    queryKey: ['idms', 'charge-offs', 'monthly-detail', activeYear - 1],
+    queryFn: () => idmsApi.getChargeOffMonthlyDetail(activeYear - 1),
   })
 
   const detailQuery = useQuery({
     queryKey: ['idms', 'charge-offs', 'detail', activeYear],
-    queryFn: () => idmsApi.getChargeOffs(activeYear!),
-    enabled: activeYear !== null,
+    queryFn: () => idmsApi.getChargeOffs(activeYear),
   })
 
   const isLoading =
     sessionQuery.isLoading ||
     yearsQuery.isLoading ||
-    kpisQuery.isLoading ||
+    overviewQuery.isLoading ||
     monthlyQuery.isLoading ||
     detailQuery.isLoading ||
-    syncMutation.isPending
+    syncMutation.isPending ||
+    syncMonthEndMutation.isPending
 
   return {
     session: sessionQuery.data,
@@ -72,11 +84,14 @@ export function useIdms() {
     setSelectedYear,
 
     sync: syncMutation.mutate,
-    syncResult: syncMutation.data,
-    syncError: syncMutation.error?.message || null,
+    syncMonthEnd: syncMonthEndMutation.mutate,
+    syncResult: syncMonthEndMutation.data ?? syncMutation.data,
+    syncError:
+      syncMutation.error?.message || syncMonthEndMutation.error?.message || null,
 
-    kpis: kpisQuery.data,
+    overview: overviewQuery.data,
     monthly: monthlyQuery.data ?? [],
+    priorMonthly: priorMonthlyQuery.data ?? [],
     detail: detailQuery.data ?? [],
 
     isLoading,

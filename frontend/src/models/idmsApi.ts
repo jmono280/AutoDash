@@ -3,6 +3,8 @@ import type {
   IdmsChargeOff,
   IdmsChargeOffKpis,
   IdmsChargeOffMonthly,
+  IdmsChargeOffMonthlyDetail,
+  IdmsChargeOffOverview,
   IdmsSessionStatus,
   IdmsSyncResult,
 } from '@/types/idms'
@@ -38,4 +40,19 @@ export const idmsApi = {
     api
       .get<IdmsChargeOff[]>('/idms/charge-offs', { params: { year } })
       .then((r) => r.data),
+
+  getChargeOffOverview: (year: number) =>
+    api
+      .get<IdmsChargeOffOverview>('/idms/charge-offs/overview', { params: { year } })
+      .then((r) => r.data),
+
+  getChargeOffMonthlyDetail: (year: number) =>
+    api
+      .get<IdmsChargeOffMonthlyDetail[]>('/idms/charge-offs/monthly-detail', {
+        params: { year },
+      })
+      .then((r) => r.data),
+
+  syncMonthEnd: () =>
+    api.post<IdmsSyncResult>('/idms/month-end/sync').then((r) => r.data),
 }

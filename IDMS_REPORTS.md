@@ -144,6 +144,18 @@ npm run dev
 
 ### Alta prioridad
 
+- [x] **Completar Charge Offs (tab Overview de AutoAnalytix)**
+  - Modelo `idms_month_end` + migración `b1da0cd3226f`, más la columna
+    `recovery_acv` en `idms_charge_offs`.
+  - Parser `parse_aa_month_end` (reporte `2159272`) y **fix**: charge offs y el
+    importador de Excel leían la columna equivocada para Recovery.
+  - Endpoints: `/idms/charge-offs/overview`, `/idms/charge-offs/monthly-detail`,
+    `/idms/month-end/sync`.
+  - Frontend: KPIs YTD con delta contra el año anterior y su MTD, los 3 ratios,
+    tabla mensual con las 9 columnas y gráfica Current vs Prior Year.
+  - Validado: los 12 meses de 2025 reproducen exactamente los montos, el Recovery
+    ACV (561.529,09) y el Recovery Ratio (30,69%) de AutoAnalytix.
+
 - [ ] **Implementar Sales**
   - Modelo `idms_sales`
   - Parser del reporte IDMS `2159264`
@@ -181,6 +193,57 @@ npm run dev
   - Actualizar `README.md` de AutoDash con la nueva funcionalidad IDMS Reports.
 
 ---
+
+## 4.b Dónde viven los reportes en IDMS
+
+Los reportes que alimentan AutoAnalytix son de **Martin Gutierrez (`owner_id 109916`)**
+y están en **Custom Reports**. Dos detalles del filtro de IDMS que conviene recordar:
+
+- `qreporttype_id`: `0` = All, `1` = Standard, `2` = **Custom**.
+- `qowner_id`: `0` **no** es "todos", es `[Public]`.
+
+`IdmsClient.list_reports()` pide tipo 1 + owner 0, así que no lista ninguno de estos.
+
+Familia MySQL (la generación vigente), 11 reportes:
+
+| ID | Reporte | Usado |
+|---|---|---|
+| `2159264` | Sales (MySQL) | sí |
+| `2159268` | Charge Offs (MySQL) | sí |
+| `2160337` | iDMS Collections (MySQL) | sí |
+| `2159272` | Month End (MySQL) | sí — snapshot de cartera |
+| `2159270` | Aging and Recency (MySQL) | no |
+| `2159265` | Inventory (MySQL) | no |
+| `2159271` | Projections (MySQL) | no |
+| `2159266` | Promise To Pay (MySQL) | no |
+| `2160339` | iDMS Collector Stats (MySQL) | no |
+| `2159269` / `2163772` | Service (MySQL) | no |
+| `2160649` | Write Offs (MySQL) | no |
+
+## 4.c Fórmulas del Charge Off Overview
+
+Verificadas contra los números reales de AutoAnalytix, no deducidas:
+
+- **Recovery ACV** = columna `Charge Off ACV Adjusted`. **No** es
+  `Total_Charge_Off_Recovery`, que viene casi siempre en cero.
+- **Recovery Ratio** = Recovery ACV / Original C/O Balance.
+- **Gross C/O Ratio** = Original C/O Balance / Month End Principal Bal.
+- **Annualized C/O Ratio** = Gross C/O Ratio × 12.
+- **Avg Prin Bal C/O** = Original C/O Balance / unidades.
+- **YTD** = meses del año con datos; el delta compara contra **ese mismo rango de
+  meses** del año anterior. **MTD** = último mes con datos.
+
+El **Month End Principal Bal** sale del reporte `2159272`, que es un snapshot vivo:
+IDMS no guarda los saldos de meses cerrados. Por eso `idms_month_end` almacena un
+snapshot por período y los dos ratios que dependen de él solo existen desde que se
+empezó a capturar. `has_portfolio_data` en el endpoint `/overview` indica si el
+período consultado tiene cartera cargada.
+
+**Months On Book** quedó implementado como la antigüedad promedio de la cartera
+activa (contrato → fecha del snapshot). No se pudo contrastar contra AutoAnalytix
+porque su captura es de meses para los que no hay snapshot; la mediana daba 13,00
+contra el 13,00 que muestra AutoAnalytix, así que si el número no cuadra, probar
+con mediana en `get_month_end_by_period`.
 
 ## 5. Notas importantes
 

@@ -20,6 +20,9 @@ class IdmsChargeOff(TimestampMixin, Base):
     original_balance = Column(Numeric(12, 2), nullable=False, default=0)
     original_total_balance = Column(Numeric(12, 2), nullable=False, default=0)
     total_recovery = Column(Numeric(12, 2), nullable=False, default=0)
+    # "Recovery ACV" de AutoAnalytix. Sale de "Charge Off ACV Adjusted", no de
+    # "Total Charge Off Recovery", que en el reporte viene casi siempre en cero.
+    recovery_acv = Column(Numeric(12, 2), nullable=False, default=0)
     current_balance = Column(Numeric(12, 2), nullable=False, default=0)
     total_adjusted = Column(Numeric(12, 2), nullable=False, default=0)
     repo_method = Column(String(100), nullable=True)

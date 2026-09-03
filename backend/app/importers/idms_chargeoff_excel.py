@@ -64,6 +64,8 @@ def parse_chargeoff_historical_excel(file_bytes: bytes) -> list[dict[str, Any]]:
             "original_balance": _to_float(row.get("Original Charge Off Balance")),
             "original_total_balance": _to_float(row.get("Charge Off Orig Total Balance")),
             "total_recovery": _to_float(row.get("Total Charge Off Recovery")),
+            # Recovery ACV: es la columna que alimenta el Recovery Ratio.
+            "recovery_acv": _to_float(row.get("Charge Off ACV Adjusted")),
             "current_balance": 0.0,
             "total_adjusted": 0.0,
             "repo_method": _to_str(row.get("Last Repo Method Desc")),
