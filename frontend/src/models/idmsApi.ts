@@ -5,6 +5,11 @@ import type {
   IdmsChargeOffMonthly,
   IdmsChargeOffMonthlyDetail,
   IdmsChargeOffOverview,
+  IdmsSales,
+  IdmsSalesBySalesperson,
+  IdmsSalesByVehicle,
+  IdmsSalesKpis,
+  IdmsSalesMonthly,
   IdmsSessionStatus,
   IdmsSyncResult,
 } from '@/types/idms'
@@ -55,4 +60,47 @@ export const idmsApi = {
 
   syncMonthEnd: () =>
     api.post<IdmsSyncResult>('/idms/month-end/sync').then((r) => r.data),
+
+  syncSales: (year: number) =>
+    api
+      .post<IdmsSyncResult>('/idms/sales/sync', null, { params: { year } })
+      .then((r) => r.data),
+
+  importSalesHistorical: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api
+      .post<IdmsSyncResult>('/idms/sales/import-historical', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data)
+  },
+
+  getSalesYears: () =>
+    api.get<number[]>('/idms/sales/years').then((r) => r.data),
+
+  getSalesKpis: (year: number) =>
+    api
+      .get<IdmsSalesKpis>('/idms/sales/kpis', { params: { year } })
+      .then((r) => r.data),
+
+  getSalesMonthly: (year: number) =>
+    api
+      .get<IdmsSalesMonthly[]>('/idms/sales/monthly', { params: { year } })
+      .then((r) => r.data),
+
+  getSales: (year: number) =>
+    api.get<IdmsSales[]>('/idms/sales', { params: { year } }).then((r) => r.data),
+
+  getSalesBySalesperson: (year: number) =>
+    api
+      .get<IdmsSalesBySalesperson[]>('/idms/sales/by-salesperson', {
+        params: { year },
+      })
+      .then((r) => r.data),
+
+  getSalesByVehicle: (year: number) =>
+    api
+      .get<IdmsSalesByVehicle[]>('/idms/sales/by-vehicle', { params: { year } })
+      .then((r) => r.data),
 }

@@ -133,6 +133,111 @@ class IdmsSyncOut(BaseModel):
     message: str
 
 
+# ---------------------------------------------------------------------------
+# Sales
+# ---------------------------------------------------------------------------
+
+
+class IdmsSalesOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    report_year: int
+    acct_id: str
+    acct_type: str | None
+    borrower: str | None
+    booked_date: date | None
+    contract_date: date | None
+    vin: str | None
+    sales_price: Decimal
+    cur_total_prin_bal_plus_tax: Decimal
+    cash_down: Decimal
+    deferred_down: Decimal
+    trade_in_acv: Decimal
+    trade_in_payoff: Decimal
+    year_model: str | None
+    make: str | None
+    model: str | None
+    mileage: int | None
+    inventory_cost: Decimal
+    cost_with_pack_fee: Decimal
+    total_expenses: Decimal
+    orig_payments: int | None
+    orig_term_months: int | None
+    regz_apr: Decimal | None
+    payment_frequency: str | None
+    amount_financed: Decimal
+    finance_charge: Decimal
+    total_of_payments: Decimal
+    reg_payment: Decimal
+    monthly_payment: Decimal
+    sales_location: str | None
+    salesperson: str | None
+    city: str | None
+    state: str | None
+    zipcode: str | None
+    referral: str | None
+    gross_profit: Decimal
+    inventory_type: str | None
+    days_on_lot: int | None
+    status: str | None
+    acct_flags: str | None
+    udf_text_value1: str | None
+    branch_name: str | None
+    branch_desc: str | None
+    portfolio_name: str | None
+    source_name: str | None
+    lender_name: str | None
+    imported_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None
+
+
+class IdmsSalesKpisOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    year: int
+    count: int
+    total_sales_price: Decimal
+    total_gross_profit: Decimal
+    total_cash_down: Decimal
+    total_amount_financed: Decimal
+    avg_gross_profit: Decimal
+    imported_at: datetime | None
+
+
+class IdmsSalesMonthlyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    year: int
+    month: int
+    month_name: str
+    count: int
+    sales_price: Decimal
+    gross_profit: Decimal
+    amount_financed: Decimal
+
+
+class IdmsSalesBySalespersonOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    salesperson: str
+    count: int
+    sales_price: Decimal
+    gross_profit: Decimal
+
+
+class IdmsSalesByVehicleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    make: str
+    model: str
+    count: int
+    sales_price: Decimal
+    gross_profit: Decimal
+
+
 class IdmsSessionStatusOut(BaseModel):
     authenticated: bool
     mfa_required: bool = False

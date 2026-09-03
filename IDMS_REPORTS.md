@@ -156,11 +156,15 @@ npm run dev
   - Validado: los 12 meses de 2025 reproducen exactamente los montos, el Recovery
     ACV (561.529,09) y el Recovery Ratio (30,69%) de AutoAnalytix.
 
-- [ ] **Implementar Sales**
-  - Modelo `idms_sales`
-  - Parser del reporte IDMS `2159264`
-  - Endpoints: `/idms/sales/sync`, `/idms/sales`, `/idms/sales/kpis`, `/idms/sales/monthly`, `/idms/sales/years`
-  - Frontend: tab o sección de Sales en `IdmsDashboard.tsx`
+- [x] **Implementar Sales**
+  - Modelo `idms_sales` + migración `e7c7c0474609`.
+  - Parsers: `parse_aa_sales` (reporte IDMS `2159264`) y `parse_aa_sales_manual`
+    (histórico CSV).
+  - Endpoints: `/idms/sales/sync`, `/idms/sales/import-historical`, `/idms/sales`,
+    `/idms/sales/kpis`, `/idms/sales/monthly`, `/idms/sales/years`,
+    `/idms/sales/by-salesperson`, `/idms/sales/by-vehicle`.
+  - Frontend: tab **Sales** en `IdmsDashboard.tsx` con KPIs, gráfica mensual,
+    tabla mensual, top vendedores, top vehículos y detalle de ventas.
 
 - [ ] **Implementar Collections**
   - Modelo `idms_collections`
@@ -191,6 +195,49 @@ npm run dev
 
 - [ ] **Documentación de despliegue**
   - Actualizar `README.md` de AutoDash con la nueva funcionalidad IDMS Reports.
+
+---
+
+## 5. Módulo Sales
+
+### Tabla
+
+`idms_sales` — una fila por cuenta vendida.
+
+### Fuentes
+
+- **IDMS**: reporte `2159264` (Sales MySQL).
+- **Histórico manual**: `examples_sales/Auto Analytix - Sales - Manual Pull.csv`.
+
+### Endpoints
+
+```http
+POST /idms/sales/sync?year=YYYY
+POST /idms/sales/import-historical
+GET  /idms/sales?year=YYYY
+GET  /idms/sales/kpis?year=YYYY
+GET  /idms/sales/monthly?year=YYYY
+GET  /idms/sales/years
+GET  /idms/sales/by-salesperson?year=YYYY
+GET  /idms/sales/by-vehicle?year=YYYY
+```
+
+### Notas
+
+- El CSV histórico no trae `Contract Sales Price` ni `Contract Cash Down`, así que
+  esas columnas quedan en `0` para años anteriores a 2025.
+- El sync desde IDMS (`2159264`) sí trae `Contract Sales Price` y el resto de
+  columnas del reporte MySQL.
+- Los KPIs principales son: # of Sales, Gross Profit, Amount Financed y
+  Sales Price.
+
+### Importar histórico
+
+```bash
+curl -s -X POST http://localhost:8001/idms/sales/import-historical \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@examples_sales/Auto Analytix - Sales - Manual Pull.csv" | jq
+```
 
 ---
 
@@ -234,10 +281,10 @@ Verificadas contra los números reales de AutoAnalytix, no deducidas:
   meses** del año anterior. **MTD** = último mes con datos.
 
 El **Month End Principal Bal** sale del reporte `2159272`, que es un snapshot vivo:
-IDMS no guarda los saldos de meses cerrados. Por eso `idms_month_end` almacena un
-snapshot por período y los dos ratios que dependen de él solo existen desde que se
-empezó a capturar. `has_portfolio_data` en el endpoint `/overview` indica si el
-período consultado tiene cartera cargada.
+IDMS no guarda los saldos de meses cerrados. Como solo disponemos del snapshot más
+reciente, el backend usa ese balance para calcular `Gross C/O Ratio` y
+`Annualized C/O Ratio` del año consultado. `has_portfolio_data` en el endpoint
+`/overview` indica si hay un snapshot de cartera disponible.
 
 **Months On Book** quedó implementado como la antigüedad promedio de la cartera
 activa (contrato → fecha del snapshot). No se pudo contrastar contra AutoAnalytix

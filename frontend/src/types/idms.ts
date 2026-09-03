@@ -93,3 +93,93 @@ export interface IdmsChargeOffKpis {
   total_adjusted: string
   imported_at: string | null
 }
+
+export interface IdmsSales {
+  id: string
+  report_year: number
+  acct_id: string
+  acct_type: string | null
+  borrower: string | null
+  booked_date: string | null
+  contract_date: string | null
+  vin: string | null
+  sales_price: string
+  cur_total_prin_bal_plus_tax: string
+  cash_down: string
+  deferred_down: string
+  trade_in_acv: string
+  trade_in_payoff: string
+  year_model: string | null
+  make: string | null
+  model: string | null
+  mileage: number | null
+  inventory_cost: string
+  cost_with_pack_fee: string
+  total_expenses: string
+  orig_payments: number | null
+  orig_term_months: number | null
+  regz_apr: string | null
+  payment_frequency: string | null
+  amount_financed: string
+  finance_charge: string
+  total_of_payments: string
+  reg_payment: string
+  monthly_payment: string
+  sales_location: string | null
+  salesperson: string | null
+  city: string | null
+  state: string | null
+  zipcode: string | null
+  referral: string | null
+  gross_profit: string
+  inventory_type: string | null
+  days_on_lot: number | null
+  status: string | null
+  acct_flags: string | null
+  udf_text_value1: string | null
+  branch_name: string | null
+  branch_desc: string | null
+  portfolio_name: string | null
+  source_name: string | null
+  lender_name: string | null
+  imported_at: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface IdmsSalesKpis {
+  year: number
+  count: number
+  total_sales_price: string
+  total_gross_profit: string
+  total_cash_down: string
+  total_amount_financed: string
+  avg_gross_profit: string
+  imported_at: string | null
+}
+
+export interface IdmsSalesMonthly {
+  year: number
+  month: number
+  month_name: string
+  count: number
+  sales_price: string
+  gross_profit: string
+  amount_financed: string
+}
+
+export interface IdmsSalesBySalesperson {
+  salesperson: string
+  count: number
+  sales_price: string
+  gross_profit: string
+}
+
+export interface IdmsSalesByVehicle {
+  make: string
+  model: string
+  count: number
+  sales_price: string
+  gross_profit: string
+}

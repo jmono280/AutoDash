@@ -9,7 +9,9 @@ from app.importers.idms_client import IdmsClient, MfaRequired
 from app.importers.idms_parsers import (
     IDMS_CHARGE_OFF_REPORT_ID,
     IDMS_MONTH_END_REPORT_ID,
+    IDMS_SALES_REPORT_ID,
     parse_aa_month_end,
+    parse_aa_sales_manual,
     parse_report,
 )
 from app.repositories.idms_repo import IdmsRepository
@@ -111,3 +113,51 @@ class IdmsService:
                 f"{snapshot.strftime('%m/%Y')}"
             ),
         )
+
+    # ------------------------------------------------------------------
+    # Sales
+    # ------------------------------------------------------------------
+    async def sync_sales(
+        self, db: AsyncSession, year: int
+    ) -> IdmsSyncOut:
+        client = IdmsClient()
+        client.login()
+        raw = client.export_csv(IDMS_SALES_REPORT_ID, export_type="csv")
+        rows = parse_report(IDMS_SALES_REPORT_ID, raw)
+        inserted = await self.repo.sync_sales(db, rows)
+        return IdmsSyncOut(
+            report_id=IDMS_SALES_REPORT_ID,
+            year=year,
+            rows_inserted=inserted,
+            message=f"{inserted} ventas sincronizadas",
+        )
+
+    async def import_sales_historical(
+        self, db: AsyncSession, file_bytes: bytes
+    ) -> IdmsSyncOut:
+        rows = parse_aa_sales_manual(file_bytes)
+        inserted = await self.repo.sync_all_sales(db, rows)
+        return IdmsSyncOut(
+            report_id="manual-pull",
+            year=0,
+            rows_inserted=inserted,
+            message=f"{inserted} ventas históricas importadas",
+        )
+
+    async def get_sales(self, db: AsyncSession, year: int):
+        return await self.repo.list_sales(db, report_year=year)
+
+    async def get_sales_kpis(self, db: AsyncSession, year: int):
+        return await self.repo.get_sales_kpis(db, report_year=year)
+
+    async def get_sales_monthly(self, db: AsyncSession, year: int):
+        return await self.repo.get_sales_monthly(db, report_year=year)
+
+    async def get_sales_years(self, db: AsyncSession) -> list[int]:
+        return await self.repo.get_sales_years(db)
+
+    async def get_sales_by_salesperson(self, db: AsyncSession, year: int):
+        return await self.repo.get_sales_by_salesperson(db, report_year=year)
+
+    async def get_sales_by_vehicle(self, db: AsyncSession, year: int):
+        return await self.repo.get_sales_by_vehicle(db, report_year=year)

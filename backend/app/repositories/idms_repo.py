@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.idms_charge_off import IdmsChargeOff
 from app.models.idms_month_end import IdmsMonthEnd
+from app.models.idms_sales import IdmsSales
 
 MONTH_NAMES = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -357,3 +358,207 @@ class IdmsRepository:
                 "months_on_book": port["months_on_book"] if port else None,
             })
         return rows
+
+    # ------------------------------------------------------------------
+    # Sales
+    # ------------------------------------------------------------------
+    async def sync_sales(
+        self, db: AsyncSession, rows: list[dict]
+    ) -> int:
+        """Borra e inserta solo los años presentes en rows, preservando históricos."""
+        years = {r["report_year"] for r in rows if r.get("report_year")}
+        if years:
+            await db.execute(
+                delete(IdmsSales).where(IdmsSales.report_year.in_(years))
+            )
+        if rows:
+            await db.execute(insert(IdmsSales), rows)
+        await db.commit()
+        return len(rows)
+
+    async def sync_all_sales(
+        self, db: AsyncSession, rows: list[dict]
+    ) -> int:
+        """Borra toda la tabla e inserta rows (carga histórica manual)."""
+        await db.execute(delete(IdmsSales))
+        if rows:
+            await db.execute(insert(IdmsSales), rows)
+        await db.commit()
+        return len(rows)
+
+    async def list_sales(
+        self, db: AsyncSession, report_year: int
+    ) -> list[IdmsSales]:
+        result = await db.execute(
+            select(IdmsSales)
+            .where(
+                IdmsSales.report_year == report_year,
+                IdmsSales.deleted_at.is_(None),
+            )
+            .order_by(IdmsSales.booked_date)
+        )
+        return list(result.scalars().all())
+
+    async def get_sales_kpis(
+        self, db: AsyncSession, report_year: int
+    ) -> dict:
+        result = await db.execute(
+            select(
+                func.count(IdmsSales.id).label("count"),
+                func.coalesce(func.sum(IdmsSales.sales_price), Decimal("0")).label(
+                    "total_sales_price"
+                ),
+                func.coalesce(func.sum(IdmsSales.gross_profit), Decimal("0")).label(
+                    "total_gross_profit"
+                ),
+                func.coalesce(func.sum(IdmsSales.cash_down), Decimal("0")).label(
+                    "total_cash_down"
+                ),
+                func.coalesce(func.sum(IdmsSales.amount_financed), Decimal("0")).label(
+                    "total_amount_financed"
+                ),
+                func.max(IdmsSales.imported_at).label("imported_at"),
+            ).where(
+                IdmsSales.report_year == report_year,
+                IdmsSales.deleted_at.is_(None),
+            )
+        )
+        row = result.one()
+        count = row.count or 0
+        total_gross_profit = row.total_gross_profit or Decimal("0")
+        return {
+            "year": report_year,
+            "count": count,
+            "total_sales_price": row.total_sales_price or Decimal("0"),
+            "total_gross_profit": total_gross_profit,
+            "total_cash_down": row.total_cash_down or Decimal("0"),
+            "total_amount_financed": row.total_amount_financed or Decimal("0"),
+            "avg_gross_profit": (total_gross_profit / count) if count else Decimal("0"),
+            "imported_at": row.imported_at,
+        }
+
+    async def get_sales_monthly(
+        self, db: AsyncSession, report_year: int
+    ) -> list[dict]:
+        result = await db.execute(
+            select(
+                func.extract("year", IdmsSales.booked_date).label("year"),
+                func.extract("month", IdmsSales.booked_date).label("month"),
+                func.count(IdmsSales.id).label("count"),
+                func.coalesce(func.sum(IdmsSales.sales_price), Decimal("0")).label(
+                    "sales_price"
+                ),
+                func.coalesce(func.sum(IdmsSales.gross_profit), Decimal("0")).label(
+                    "gross_profit"
+                ),
+                func.coalesce(func.sum(IdmsSales.amount_financed), Decimal("0")).label(
+                    "amount_financed"
+                ),
+            )
+            .where(
+                IdmsSales.report_year == report_year,
+                IdmsSales.deleted_at.is_(None),
+                IdmsSales.booked_date.isnot(None),
+            )
+            .group_by(
+                func.extract("year", IdmsSales.booked_date),
+                func.extract("month", IdmsSales.booked_date),
+            )
+            .order_by(
+                func.extract("year", IdmsSales.booked_date),
+                func.extract("month", IdmsSales.booked_date),
+            )
+        )
+        rows = []
+        for r in result.all():
+            year = int(r.year)
+            month = int(r.month)
+            rows.append({
+                "year": year,
+                "month": month,
+                "month_name": f"{MONTH_NAMES[month - 1]} {year}",
+                "count": r.count,
+                "sales_price": r.sales_price or Decimal("0"),
+                "gross_profit": r.gross_profit or Decimal("0"),
+                "amount_financed": r.amount_financed or Decimal("0"),
+            })
+        return rows
+
+    async def get_sales_years(self, db: AsyncSession) -> list[int]:
+        result = await db.execute(
+            select(IdmsSales.report_year)
+            .where(IdmsSales.deleted_at.is_(None))
+            .distinct()
+            .order_by(IdmsSales.report_year.desc())
+        )
+        return [r[0] for r in result.all()]
+
+    async def get_sales_by_salesperson(
+        self, db: AsyncSession, report_year: int
+    ) -> list[dict]:
+        salesperson_col = func.coalesce(IdmsSales.salesperson, "Sin vendedor").label(
+            "salesperson"
+        )
+        result = await db.execute(
+            select(
+                salesperson_col,
+                func.count(IdmsSales.id).label("count"),
+                func.coalesce(func.sum(IdmsSales.sales_price), Decimal("0")).label(
+                    "sales_price"
+                ),
+                func.coalesce(func.sum(IdmsSales.gross_profit), Decimal("0")).label(
+                    "gross_profit"
+                ),
+            )
+            .where(
+                IdmsSales.report_year == report_year,
+                IdmsSales.deleted_at.is_(None),
+            )
+            .group_by(salesperson_col)
+            .order_by(func.sum(IdmsSales.gross_profit).desc())
+        )
+        return [
+            {
+                "salesperson": r.salesperson,
+                "count": r.count,
+                "sales_price": r.sales_price or Decimal("0"),
+                "gross_profit": r.gross_profit or Decimal("0"),
+            }
+            for r in result.all()
+        ]
+
+    async def get_sales_by_vehicle(
+        self, db: AsyncSession, report_year: int
+    ) -> list[dict]:
+        make_col = func.coalesce(IdmsSales.make, "Sin marca").label("make")
+        model_col = func.coalesce(IdmsSales.model, "Sin modelo").label("model")
+        result = await db.execute(
+            select(
+                make_col,
+                model_col,
+                func.count(IdmsSales.id).label("count"),
+                func.coalesce(func.sum(IdmsSales.sales_price), Decimal("0")).label(
+                    "sales_price"
+                ),
+                func.coalesce(func.sum(IdmsSales.gross_profit), Decimal("0")).label(
+                    "gross_profit"
+                ),
+            )
+            .where(
+                IdmsSales.report_year == report_year,
+                IdmsSales.deleted_at.is_(None),
+            )
+            .group_by(make_col, model_col)
+            .order_by(func.count(IdmsSales.id).desc())
+            .limit(20)
+        )
+        return [
+            {
+                "make": r.make,
+                "model": r.model,
+                "count": r.count,
+                "sales_price": r.sales_price or Decimal("0"),
+                "gross_profit": r.gross_profit or Decimal("0"),
+            }
+            for r in result.all()
+        ]

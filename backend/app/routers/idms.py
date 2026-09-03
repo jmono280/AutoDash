@@ -13,6 +13,11 @@ from app.schemas.idms import (
     IdmsChargeOffMonthlyOut,
     IdmsChargeOffOut,
     IdmsChargeOffOverviewOut,
+    IdmsSalesBySalespersonOut,
+    IdmsSalesByVehicleOut,
+    IdmsSalesKpisOut,
+    IdmsSalesMonthlyOut,
+    IdmsSalesOut,
     IdmsSessionStatusOut,
     IdmsSyncOut,
 )
@@ -156,3 +161,107 @@ async def sync_month_end(
     _: User = Depends(get_current_user),
 ) -> IdmsSyncOut:
     return await service.sync_month_end(db)
+
+
+# ------------------------------------------------------------------
+# Sales
+# ------------------------------------------------------------------
+
+
+@router.post("/sales/sync", response_model=IdmsSyncOut)
+async def sync_sales(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsSyncOut:
+    return await service.sync_sales(db, year=year)
+
+
+@router.post(
+    "/sales/import-historical",
+    response_model=IdmsSyncOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_sales_historical(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsSyncOut:
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un CSV (.csv)",
+        )
+    try:
+        return await service.import_sales_historical(db, await file.read())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pudo parsear el archivo: {exc}",
+        )
+
+
+@router.get("/sales", response_model=list[IdmsSalesOut])
+async def list_sales(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsSalesOut]:
+    rows = await service.get_sales(db, year=year)
+    return [IdmsSalesOut.model_validate(r) for r in rows]
+
+
+@router.get("/sales/kpis", response_model=IdmsSalesKpisOut)
+async def get_sales_kpis(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsSalesKpisOut:
+    data = await service.get_sales_kpis(db, year=year)
+    return IdmsSalesKpisOut(**data)
+
+
+@router.get("/sales/monthly", response_model=list[IdmsSalesMonthlyOut])
+async def get_sales_monthly(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsSalesMonthlyOut]:
+    rows = await service.get_sales_monthly(db, year=year)
+    return [IdmsSalesMonthlyOut(**r) for r in rows]
+
+
+@router.get("/sales/years", response_model=list[int])
+async def get_sales_years(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[int]:
+    return await service.get_sales_years(db)
+
+
+@router.get("/sales/by-salesperson", response_model=list[IdmsSalesBySalespersonOut])
+async def get_sales_by_salesperson(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsSalesBySalespersonOut]:
+    rows = await service.get_sales_by_salesperson(db, year=year)
+    return [IdmsSalesBySalespersonOut(**r) for r in rows]
+
+
+@router.get("/sales/by-vehicle", response_model=list[IdmsSalesByVehicleOut])
+async def get_sales_by_vehicle(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsSalesByVehicleOut]:
+    rows = await service.get_sales_by_vehicle(db, year=year)
+    return [IdmsSalesByVehicleOut(**r) for r in rows]

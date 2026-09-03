@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   CartesianGrid,
   Legend,
@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useIdms } from '@/viewmodels/useIdms'
+import { useIdmsSales } from '@/viewmodels/useIdmsSales'
 import Spinner from '@/components/ui/Spinner'
 import EmptyState from '@/components/ui/EmptyState'
 import DataTable from '@/components/ui/DataTable'
@@ -18,9 +19,26 @@ import type {
   IdmsChargeOff,
   IdmsChargeOffMonthlyDetail,
   IdmsDelta,
+  IdmsSales,
+  IdmsSalesBySalesperson,
+  IdmsSalesByVehicle,
+  IdmsSalesMonthly,
 } from '@/types/idms'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -50,18 +68,18 @@ function fmtDate(val: string | null): string {
   return val ? val.slice(0, 10) : '—'
 }
 
-// ── Tarjetas ─────────────────────────────────────────────────────────────────
+// ── Componentes reutilizables ────────────────────────────────────────────────
 
 interface OverviewCardProps {
   label: string
   value: string
-  delta: IdmsDelta
-  deltaFormat: 'currency' | 'number'
-  mtdLabel: string
-  mtdValue: string
+  delta?: IdmsDelta
+  deltaFormat?: 'currency' | 'number'
+  mtdLabel?: string
+  mtdValue?: string
+  accent?: string
 }
 
-/** Tarjeta del Overview: valor YTD, variación contra el año anterior y su MTD. */
 function OverviewCard({
   label,
   value,
@@ -69,28 +87,36 @@ function OverviewCard({
   deltaFormat,
   mtdLabel,
   mtdValue,
+  accent = '#534AB7',
 }: OverviewCardProps) {
-  const dv = n(delta.value)
-  // En charge offs, bajar es bueno: menos cartera dada de baja.
-  const positivo = dv <= 0
+  const dv = delta ? n(delta.value) : 0
+  const hasDelta = delta !== undefined
+  const positivo = hasDelta ? dv >= 0 : true
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5">
       <div className="flex items-start justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
           {label}
         </span>
-        <span
-          className={`text-xs font-semibold ${
-            positivo ? 'text-[#1D9E75]' : 'text-[#A32D2D]'
-          }`}
-        >
-          {deltaFormat === 'currency' ? fmt$(dv) : fmtN(dv)} ({fmtPct(delta.pct)})
-        </span>
+        {hasDelta && (
+          <span
+            className={`text-xs font-semibold ${
+              positivo ? 'text-[#1D9E75]' : 'text-[#A32D2D]'
+            }`}
+          >
+            {deltaFormat === 'currency' ? fmt$(dv) : fmtN(dv)} ({fmtPct(delta.pct)})
+          </span>
+        )}
       </div>
       <span className="text-2xl font-bold text-gray-900">{value}</span>
-      <div className="rounded-md bg-[#534AB7] px-3 py-1.5 text-center text-xs font-semibold text-white">
-        {mtdLabel}: {mtdValue}
-      </div>
+      {mtdLabel && (
+        <div
+          className="rounded-md px-3 py-1.5 text-center text-xs font-semibold text-white"
+          style={{ backgroundColor: accent }}
+        >
+          {mtdLabel}: {mtdValue}
+        </div>
+      )}
     </div>
   )
 }
@@ -125,7 +151,27 @@ function RatioCard({
   )
 }
 
-// ── Columnas ─────────────────────────────────────────────────────────────────
+function SimpleKpiCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string
+  value: string
+  sub?: string
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
+      {sub && <div className="mt-1 text-xs text-gray-500">{sub}</div>}
+    </div>
+  )
+}
+
+// ── Charge Offs ──────────────────────────────────────────────────────────────
 
 const MONTHLY_COLUMNS: Column<IdmsChargeOffMonthlyDetail>[] = [
   { key: 'month_name', header: 'Month End' },
@@ -175,7 +221,7 @@ const MONTHLY_COLUMNS: Column<IdmsChargeOffMonthlyDetail>[] = [
   },
 ]
 
-const DETAIL_COLUMNS: Column<IdmsChargeOff>[] = [
+const CHARGE_OFF_DETAIL_COLUMNS: Column<IdmsChargeOff>[] = [
   { key: 'acct_id', header: 'Account' },
   { key: 'borrower', header: 'Borrower' },
   {
@@ -200,16 +246,8 @@ const DETAIL_COLUMNS: Column<IdmsChargeOff>[] = [
   { key: 'status', header: 'Status' },
 ]
 
-// ── Vista ────────────────────────────────────────────────────────────────────
-
-export default function IdmsDashboard() {
+function ChargeOffsTab() {
   const {
-    session,
-    isAuthenticated,
-    mfaRequired,
-    login,
-    isLoginLoading,
-    loginError,
     years,
     activeYear,
     setSelectedYear,
@@ -224,39 +262,6 @@ export default function IdmsDashboard() {
     isLoading,
   } = useIdms()
 
-  const [otp, setOtp] = useState('')
-
-  if (!isAuthenticated) {
-    return (
-      <div className="mx-auto max-w-md space-y-4 rounded-xl bg-white p-6 shadow-sm">
-        <h1 className="text-lg font-bold text-gray-900">IDMS Reports</h1>
-        <p className="text-sm text-gray-500">
-          {mfaRequired
-            ? 'IDMS requiere el código de tu app autenticadora.'
-            : 'No hay sesión activa con IDMS. Conecta para sincronizar datos.'}
-        </p>
-        <input
-          type="text"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value)}
-          placeholder="Código MFA (si aplica)"
-          maxLength={6}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
-        />
-        <button
-          onClick={() => login(otp || undefined)}
-          disabled={isLoginLoading}
-          className="w-full rounded-md bg-[#ffea00] px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-yellow-300 disabled:opacity-50"
-        >
-          {isLoginLoading ? 'Conectando...' : 'Conectar con IDMS'}
-        </button>
-        {loginError && <p className="text-sm text-red-600">{loginError}</p>}
-        {session?.message && <p className="text-xs text-gray-400">{session.message}</p>}
-      </div>
-    )
-  }
-
-  // Serie de la gráfica: unidades del año activo contra el anterior.
   const prior = new Map(priorMonthly.map((m) => [m.month, m.count]))
   const chartData = MONTHS.map((name, i) => {
     const month = i + 1
@@ -360,10 +365,7 @@ export default function IdmsDashboard() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <RatioCard
-              label="Recovery Ratio"
-              value={fmtPct(overview.recovery_ratio)}
-            />
+            <RatioCard label="Recovery Ratio" value={fmtPct(overview.recovery_ratio)} />
             <RatioCard
               label="Gross C/O Ratio"
               value={fmtPct(overview.gross_co_ratio)}
@@ -453,7 +455,7 @@ export default function IdmsDashboard() {
               Detalle de cuentas
             </h3>
             <DataTable
-              columns={DETAIL_COLUMNS}
+              columns={CHARGE_OFF_DETAIL_COLUMNS}
               data={detail}
               pageSize={20}
               emptyText="No hay cuentas para el año seleccionado."
@@ -466,6 +468,428 @@ export default function IdmsDashboard() {
           description="Seleccioná un año y sincronizá con IDMS para cargar Charge Offs."
         />
       )}
+    </div>
+  )
+}
+
+// ── Sales ────────────────────────────────────────────────────────────────────
+
+const SALES_MONTHLY_COLUMNS: Column<IdmsSalesMonthly>[] = [
+  { key: 'month_name', header: 'Month' },
+  {
+    key: 'count',
+    header: 'Units Sold',
+    className: 'text-right',
+    render: (r) => fmtN(r.count),
+  },
+  {
+    key: 'sales_price',
+    header: 'Sales Price',
+    className: 'text-right',
+    render: (r) => fmt$(r.sales_price),
+  },
+  {
+    key: 'gross_profit',
+    header: 'Gross Profit',
+    className: 'text-right',
+    render: (r) => fmt$(r.gross_profit),
+  },
+  {
+    key: 'amount_financed',
+    header: 'Amount Financed',
+    className: 'text-right',
+    render: (r) => fmt$(r.amount_financed),
+  },
+]
+
+const SALESPERSON_COLUMNS: Column<IdmsSalesBySalesperson>[] = [
+  { key: 'salesperson', header: 'Salesperson' },
+  {
+    key: 'count',
+    header: 'Units',
+    className: 'text-right',
+    render: (r) => fmtN(r.count),
+  },
+  {
+    key: 'gross_profit',
+    header: 'Gross Profit',
+    className: 'text-right',
+    render: (r) => fmt$(r.gross_profit),
+  },
+]
+
+const VEHICLE_COLUMNS: Column<IdmsSalesByVehicle>[] = [
+  { key: 'make', header: 'Make' },
+  { key: 'model', header: 'Model' },
+  {
+    key: 'count',
+    header: 'Units',
+    className: 'text-right',
+    render: (r) => fmtN(r.count),
+  },
+  {
+    key: 'gross_profit',
+    header: 'Gross Profit',
+    className: 'text-right',
+    render: (r) => fmt$(r.gross_profit),
+  },
+]
+
+const SALES_DETAIL_COLUMNS: Column<IdmsSales>[] = [
+  { key: 'acct_id', header: 'Account' },
+  { key: 'borrower', header: 'Borrower' },
+  {
+    key: 'booked_date',
+    header: 'Booked Date',
+    render: (r) => fmtDate(r.booked_date),
+  },
+  { key: 'make', header: 'Make' },
+  { key: 'model', header: 'Model' },
+  { key: 'salesperson', header: 'Salesperson' },
+  {
+    key: 'sales_price',
+    header: 'Sales Price',
+    className: 'text-right',
+    render: (r) => fmt$(r.sales_price),
+  },
+  {
+    key: 'gross_profit',
+    header: 'Gross Profit',
+    className: 'text-right',
+    render: (r) => fmt$(r.gross_profit),
+  },
+]
+
+function SalesTab() {
+  const {
+    years,
+    activeYear,
+    setSelectedYear,
+    sync,
+    importHistorical,
+    syncResult,
+    syncError,
+    isSyncing,
+    isImporting,
+    kpis,
+    monthly,
+    detail,
+    bySalesperson,
+    byVehicle,
+    isLoading,
+  } = useIdmsSales()
+
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const totals = monthly.reduce(
+    (a, m) => ({
+      count: a.count + m.count,
+      sales: a.sales + n(m.sales_price),
+      profit: a.profit + n(m.gross_profit),
+      financed: a.financed + n(m.amount_financed),
+    }),
+    { count: 0, sales: 0, profit: 0, financed: 0 },
+  )
+
+  const lastMonth = monthly[monthly.length - 1]
+
+  const chartData = monthly.map((m) => ({
+    month_name: m.month_name,
+    units: m.count,
+    profit: n(m.gross_profit),
+  }))
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Sales Overview</h1>
+          <p className="text-sm text-gray-500">Datos de IDMS — Automania</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {years.length > 0 && (
+            <select
+              value={activeYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                importHistorical(file)
+              }
+            }}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={isImporting}
+            className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isImporting ? 'Importando...' : 'Importar histórico CSV'}
+          </button>
+
+          <button
+            onClick={() => sync(activeYear)}
+            disabled={isSyncing}
+            className="rounded-md bg-[#ffea00] px-4 py-1.5 text-sm font-semibold text-gray-900 hover:bg-yellow-300 disabled:opacity-50"
+          >
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar año'}
+          </button>
+        </div>
+      </div>
+
+      {syncResult && (
+        <div className="rounded-md bg-green-50 p-3 text-sm text-green-700">
+          {syncResult.message}
+        </div>
+      )}
+      {syncError && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{syncError}</div>
+      )}
+
+      {isLoading && !kpis ? (
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
+      ) : kpis && kpis.count > 0 ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <OverviewCard
+              label="YTD # of Sales"
+              value={fmtN(kpis.count)}
+              mtdLabel="MTD # of Sales"
+              mtdValue={fmtN(lastMonth?.count ?? 0)}
+              accent="#1D9E75"
+            />
+            <OverviewCard
+              label="YTD Gross Profit"
+              value={fmt$(kpis.total_gross_profit)}
+              mtdLabel="MTD Gross Profit"
+              mtdValue={fmt$(lastMonth?.gross_profit ?? 0)}
+              accent="#1D9E75"
+            />
+            <OverviewCard
+              label="YTD Amount Financed"
+              value={fmt$(kpis.total_amount_financed)}
+              mtdLabel="MTD Amount Financed"
+              mtdValue={fmt$(lastMonth?.amount_financed ?? 0)}
+              accent="#378ADD"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <SimpleKpiCard
+              label="YTD Sales Price"
+              value={fmt$(kpis.total_sales_price)}
+              sub="Solo disponible para sync IDMS 2025+"
+            />
+            <SimpleKpiCard
+              label="Avg Gross Profit / Sale"
+              value={fmt$(kpis.avg_gross_profit)}
+            />
+            <SimpleKpiCard
+              label="YTD Cash Down"
+              value={fmt$(kpis.total_cash_down)}
+            />
+          </div>
+
+          {chartData.length > 0 && (
+            <div className="rounded-xl bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold text-gray-700">
+                Ventas por mes — {activeYear}
+              </h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month_name" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip formatter={(v: number) => fmtN(v)} />
+                    <Legend />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="units"
+                      name="Units Sold"
+                      stroke="#534AB7"
+                      strokeWidth={2}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="profit"
+                      name="Gross Profit"
+                      stroke="#1D9E75"
+                      strokeWidth={2}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Resumen mensual — {activeYear}
+            </h3>
+            <DataTable
+              columns={SALES_MONTHLY_COLUMNS}
+              data={monthly}
+              pageSize={12}
+              emptyText="No hay datos para el año seleccionado."
+            />
+            <div className="mt-3 flex flex-wrap gap-x-8 gap-y-1 border-t border-gray-200 pt-3 text-sm">
+              <span className="font-semibold text-gray-700">Totales</span>
+              <span className="text-gray-600">
+                Units: <b>{fmtN(totals.count)}</b>
+              </span>
+              <span className="text-gray-600">
+                Sales Price: <b>{fmt$(totals.sales)}</b>
+              </span>
+              <span className="text-gray-600">
+                Gross Profit: <b>{fmt$(totals.profit)}</b>
+              </span>
+              <span className="text-gray-600">
+                Financed: <b>{fmt$(totals.financed)}</b>
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-xl bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold text-gray-700">
+                Top vendedores — {activeYear}
+              </h3>
+              <DataTable
+                columns={SALESPERSON_COLUMNS}
+                data={bySalesperson}
+                pageSize={10}
+                emptyText="No hay vendedores para el año seleccionado."
+              />
+            </div>
+
+            <div className="rounded-xl bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold text-gray-700">
+                Top vehículos — {activeYear}
+              </h3>
+              <DataTable
+                columns={VEHICLE_COLUMNS}
+                data={byVehicle}
+                pageSize={10}
+                emptyText="No hay vehículos para el año seleccionado."
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Detalle de ventas
+            </h3>
+            <DataTable
+              columns={SALES_DETAIL_COLUMNS}
+              data={detail}
+              pageSize={20}
+              emptyText="No hay ventas para el año seleccionado."
+            />
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          title="Sin datos de ventas"
+          description="Importá el histórico CSV o sincronizá con IDMS para cargar Sales."
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Vista principal con tabs ─────────────────────────────────────────────────
+
+export default function IdmsDashboard() {
+  const {
+    session,
+    isAuthenticated,
+    mfaRequired,
+    login,
+    isLoginLoading,
+    loginError,
+  } = useIdms()
+
+  const [activeTab, setActiveTab] = useState<'charge-offs' | 'sales'>('charge-offs')
+  const [otp, setOtp] = useState('')
+
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 rounded-xl bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-bold text-gray-900">IDMS Reports</h1>
+        <p className="text-sm text-gray-500">
+          {mfaRequired
+            ? 'IDMS requiere el código de tu app autenticadora.'
+            : 'No hay sesión activa con IDMS. Conecta para sincronizar datos.'}
+        </p>
+        <input
+          type="text"
+          value={otp}
+          onChange={(e) => setOtp(e.target.value)}
+          placeholder="Código MFA (si aplica)"
+          maxLength={6}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
+        />
+        <button
+          onClick={() => login(otp || undefined)}
+          disabled={isLoginLoading}
+          className="w-full rounded-md bg-[#ffea00] px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-yellow-300 disabled:opacity-50"
+        >
+          {isLoginLoading ? 'Conectando...' : 'Conectar con IDMS'}
+        </button>
+        {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+        {session?.message && <p className="text-xs text-gray-400">{session.message}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-6" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('charge-offs')}
+            className={`border-b-2 px-1 py-3 text-sm font-semibold ${
+              activeTab === 'charge-offs'
+                ? 'border-[#ffea00] text-gray-900'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Charge Offs
+          </button>
+          <button
+            onClick={() => setActiveTab('sales')}
+            className={`border-b-2 px-1 py-3 text-sm font-semibold ${
+              activeTab === 'sales'
+                ? 'border-[#ffea00] text-gray-900'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Sales
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'charge-offs' ? <ChargeOffsTab /> : <SalesTab />}
     </div>
   )
 }
