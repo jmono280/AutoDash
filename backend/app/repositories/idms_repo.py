@@ -295,17 +295,23 @@ class IdmsRepository:
             diff = Decimal(actual) - Decimal(previo)
             return {"value": diff, "pct": _ratio(diff, previo)}
 
-        # El Gross C/O Ratio solo tiene sentido comparando el mismo rango de meses
-        # en numerador y denominador. Como el principal balance solo existe desde
-        # que se empezó a snapshotear la cartera, se restringe a esos meses; si no
-        # hay ninguno, el ratio queda en 0 y has_portfolio_data avisa por qué.
-        meses_con_cartera = [m for m in months if (year, m) in portfolio]
-        principal_ytd = sum(
-            (portfolio[(year, m)]["principal_balance"] for m in meses_con_cartera),
-            Decimal("0"),
+        # El Month End es un snapshot vivo de la cartera. IDMS no guarda saldos de
+        # meses cerrados, así que solo disponemos del snapshot más reciente. Para
+        # calcular Gross C/O Ratio y Annualized C/O Ratio usamos el balance
+        # principal del snapshot más reciente del año consultado (o el más reciente
+        # disponible si aún no hay uno del año).
+        year_portfolio_keys = [k for k in portfolio.keys() if k[0] == year]
+        latest_portfolio_key = (
+            max(year_portfolio_keys, key=lambda k: k[1])
+            if year_portfolio_keys
+            else max(portfolio.keys(), default=None, key=lambda k: (k[0], k[1]))
         )
-        co_con_cartera = acumular(current, meses_con_cartera)
-        gross_ratio = _ratio(co_con_cartera["total_charge_off"], principal_ytd)
+        principal_balance = (
+            portfolio[latest_portfolio_key]["principal_balance"]
+            if latest_portfolio_key
+            else Decimal("0")
+        )
+        gross_ratio = _ratio(ytd["total_charge_off"], principal_balance)
 
         return {
             "year": year,
@@ -324,7 +330,7 @@ class IdmsRepository:
             "recovery_ratio": _ratio(ytd["recovery_acv"], ytd["total_charge_off"]),
             "gross_co_ratio": gross_ratio,
             "annualized_co_ratio": gross_ratio * 12,
-            "has_portfolio_data": principal_ytd > 0,
+            "has_portfolio_data": principal_balance > 0,
         }
 
     async def get_charge_off_monthly_detail(self, db: AsyncSession, year: int) -> list[dict]:
