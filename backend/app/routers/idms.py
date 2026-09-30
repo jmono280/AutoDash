@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import io
+from datetime import date
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +17,9 @@ from app.schemas.idms import (
     IdmsChargeOffMonthlyOut,
     IdmsChargeOffOut,
     IdmsChargeOffOverviewOut,
+    IdmsInventoryAgingOut,
+    IdmsInventoryKpisOut,
+    IdmsInventoryOut,
     IdmsSalesBySalespersonOut,
     IdmsSalesByVehicleOut,
     IdmsSalesKpisOut,
@@ -265,3 +272,84 @@ async def get_sales_by_vehicle(
 ) -> list[IdmsSalesByVehicleOut]:
     rows = await service.get_sales_by_vehicle(db, year=year)
     return [IdmsSalesByVehicleOut(**r) for r in rows]
+
+
+# ------------------------------------------------------------------
+# Inventario
+# ------------------------------------------------------------------
+
+
+@router.post("/inventory/sync", response_model=IdmsSyncOut)
+async def sync_inventory(
+    status: str = Query("A", description="Estado de inventario en IDMS (A = Available)"),
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsSyncOut:
+    try:
+        return await service.sync_inventory(db, status=status)
+    except ValueError as exc:
+        # 409: el parámetro de query de esta función se llama "status" y tapa
+        # el módulo fastapi.status importado arriba, por eso el código va
+        # literal en vez de status.HTTP_409_CONFLICT.
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get("/inventory", response_model=list[IdmsInventoryOut])
+async def list_inventory(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsInventoryOut]:
+    rows = await service.get_inventory(db)
+    return [IdmsInventoryOut.model_validate(r) for r in rows]
+
+
+@router.get("/inventory/kpis", response_model=IdmsInventoryKpisOut)
+async def get_inventory_kpis(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> IdmsInventoryKpisOut:
+    data = await service.get_inventory_kpis(db)
+    return IdmsInventoryKpisOut(**data)
+
+
+@router.get("/inventory/aging", response_model=list[IdmsInventoryAgingOut])
+async def get_inventory_aging(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> list[IdmsInventoryAgingOut]:
+    rows = await service.get_inventory_aging(db)
+    return [IdmsInventoryAgingOut(**r) for r in rows]
+
+
+@router.get("/inventory/export")
+async def export_inventory(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> StreamingResponse:
+    content = await service.export_inventory_xlsx(db)
+    filename = f"inventario_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/inventory/export-pdf")
+async def export_inventory_pdf(
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> StreamingResponse:
+    content = await service.export_inventory_pdf(db)
+    filename = f"inventario_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

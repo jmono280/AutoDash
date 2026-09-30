@@ -452,6 +452,47 @@ class IdmsClient:
         r3.raise_for_status()
         return r3.content
 
+    # ------------------------------------------------------------------
+    # Inventario (búsqueda nativa, no un reporte Exago)
+    # ------------------------------------------------------------------
+    def fetch_inventory(self, status: str = "A") -> str:
+        """Descarga el fragmento HTML de la búsqueda de inventario de IDMS.
+
+        Replica el XHR que dispara la grilla `_InventoryLookupFormElement`
+        (`QueueDataSourceId=20`). Devuelve el HTML crudo con la tabla de
+        resultados; el parseo vive en `idms_parsers.parse_inventory`.
+        """
+        params = {
+            "QueueDataSourceId": "20",
+            "Status": status,
+            "BegYearModel": "0",
+            "EndYearModel": "0",
+            "DolLower": "0",
+            "DolUpper": "0",
+            "AskPriceLower": "0",
+            "AskPriceUpper": "0",
+            "AcquiredPriceLower": "0",
+            "AcquiredPriceUpper": "0",
+            "MileageLower": "0",
+            "MileageUpper": "0",
+            "AskDownMax": "0",
+            "AskTermMax": "0",
+            "LookUpQueryString": f"status={status}",
+        }
+        r = self.session.get(
+            f"{self.base_url}/Inventory/_Lookup",
+            params=params,
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{self.base_url}/Inventory/Main/_lookup?status={status}",
+            },
+            timeout=90,
+        )
+        r.raise_for_status()
+        if "LoginFormElement" in r.text or "_InventoryLookupFormElement" not in r.text:
+            raise RuntimeError("La búsqueda de inventario de IDMS no devolvió resultados (¿sesión caída?)")
+        return r.text
+
     def _extract_execute_form(self, html: str) -> Optional[Dict[str, str]]:
         fields: Dict[str, str] = {}
         for tag in re.findall(r'<input[^>]*>', html):

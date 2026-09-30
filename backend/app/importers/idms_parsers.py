@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from datetime import date, datetime
+from html import unescape
 from typing import Any, Dict, List, Optional
 
 
@@ -415,6 +417,120 @@ def _clean_float(value: str) -> Optional[float]:
         return float(s)
     except ValueError:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Inventario (búsqueda nativa de IDMS — /Inventory/_Lookup, QueueDataSourceId=20)
+# ---------------------------------------------------------------------------
+
+
+def _cell_spans(cell_html: str) -> List[str]:
+    """Texto de cada <span> de una celda (celdas multivalor separadas por <br/>).
+
+    IDMS rellena las celdas vacías con `&nbsp;&nbsp;`, que aquí queda como "".
+    """
+    parts = re.findall(r"<span\b[^>]*>(.*?)</span>", cell_html, re.S | re.I)
+    if not parts:
+        txt = unescape(re.sub(r"<[^>]+>", " ", cell_html))
+        txt = re.sub(r"\s+", " ", txt).strip()
+        return [txt] if txt else [""]
+    out = []
+    for p in parts:
+        t = unescape(re.sub(r"<[^>]+>", " ", p))
+        out.append(re.sub(r"\s+", " ", t).strip())
+    return out
+
+
+def _span(spans: List[str], i: int) -> str:
+    return spans[i] if i < len(spans) else ""
+
+
+# Índice de columna -> texto que su encabezado debe contener en el layout
+# "Marketing (wip)". Si IDMS cambia el layout activo de la cuenta (a mano o
+# porque se reinició), la tabla vuelve a venir con otra estructura de celdas
+# y este mapeo por índice ya no aplica — mejor fallar con un mensaje claro que
+# insertar datos de columnas cruzadas en la base.
+_EXPECTED_HEADER_HINTS = {
+    0: "stock",
+    1: "year",
+    2: "make",
+    3: "model",
+    9: "status",
+    13: "asking price",
+    14: "wholesale",
+    15: "inventory flags",
+}
+
+
+def _validate_inventory_layout(header_cells: List[str]) -> None:
+    texts = [_span(_cell_spans(c), 0) for c in header_cells]
+    problems = [
+        f"columna {idx} ({hint!r} esperado): encontré {(texts[idx] if idx < len(texts) else '')!r}"
+        for idx, hint in _EXPECTED_HEADER_HINTS.items()
+        if hint not in (texts[idx].lower() if idx < len(texts) else "")
+    ]
+    if problems:
+        raise ValueError(
+            "El layout activo de inventario en IDMS no es 'Marketing (wip)' "
+            "(cambió de estructura). Volvé a seleccionarlo en IDMS — ícono "
+            "Layout Settings de la búsqueda de inventario — y sincronizá de "
+            "nuevo. Detalle: " + "; ".join(problems)
+        )
+
+
+def parse_inventory(html: str, snapshot: Optional[date] = None) -> List[Dict[str, Any]]:
+    """Parsea la tabla de la búsqueda de inventario de IDMS a filas de BD.
+
+    Es un snapshot vivo: el período lo define la fecha en que se toma.
+    Layout "Marketing (wip)" (QueueDataSourceId 20, ícono Layout Settings de
+    IDMS) — un valor por celda; si IDMS cambia el layout activo, este mapeo por
+    índice hay que revisarlo (ver IDMS_REPORTS.md). `_validate_inventory_layout`
+    detecta el desajuste por el texto del encabezado antes de parsear filas.
+    """
+    snapshot = snapshot or date.today()
+    m = re.search(r"<table\b.*?</table>", html, re.S | re.I)
+    if not m:
+        return []
+
+    rows = re.findall(r"<tr\b([^>]*)>(.*?)</tr>", m.group(0), re.S | re.I)
+
+    header_body = next((body for attrs, body in rows if "row_header" in attrs), None)
+    if header_body is not None:
+        header_cells = re.findall(r"<td\b[^>]*>(.*?)</td>", header_body, re.S | re.I)
+        _validate_inventory_layout(header_cells)
+
+    out: List[Dict[str, Any]] = []
+    for attrs, body in rows:
+        if "row_header" in attrs:
+            continue
+        cells = re.findall(r"<td\b[^>]*>(.*?)</td>", body, re.S | re.I)
+        if len(cells) < 16:
+            continue
+        sp = [_cell_spans(c) for c in cells]
+
+        # inventory_id / dealer_id del onclick: inv_takeAction(33,"10935053","104921",this)
+        oc = re.search(r'inv_takeAction\(\s*\d+\s*,\s*"(\d+)"\s*,\s*"(\d+)"', attrs)
+
+        out.append({
+            "snapshot_date": snapshot,
+            "inventory_id": oc.group(1) if oc else None,
+            "dealer_id": oc.group(2) if oc else None,
+            "stock_number": _span(sp[0], 0) or None,
+            "vehicle_year": _span(sp[1], 0) or None,
+            "make": _span(sp[2], 0) or None,
+            "model_trim": _span(sp[3], 0) or None,
+            "exterior_color": _span(sp[4], 0) or None,
+            "vin_last6": _span(sp[6], 0) or None,
+            "mileage": _clean_int(_span(sp[7], 0)),
+            "status": _span(sp[9], 0) or None,
+            "alternate_lot": _span(sp[10], 0) or None,
+            "acq_date": _parse_date(_span(sp[11], 0)),
+            "dol": _clean_int(_span(sp[12], 0)),
+            "price": _clean_money(_span(sp[13], 0)),
+            "wholesale_price": _clean_money(_span(sp[14], 0)),
+            "inventory_flags": _span(sp[15], 0) or None,
+        })
+    return out
 
 
 def parse_report(report_id: str, content: bytes) -> List[Dict[str, Any]]:

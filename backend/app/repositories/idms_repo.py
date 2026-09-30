@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import case, delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.idms_charge_off import IdmsChargeOff
+from app.models.idms_inventory import IdmsInventory
 from app.models.idms_month_end import IdmsMonthEnd
 from app.models.idms_sales import IdmsSales
 
@@ -559,6 +560,83 @@ class IdmsRepository:
                 "count": r.count,
                 "sales_price": r.sales_price or Decimal("0"),
                 "gross_profit": r.gross_profit or Decimal("0"),
+            }
+            for r in result.all()
+        ]
+
+    # ------------------------------------------------------------------
+    # Inventario (snapshot vivo — se borra y recarga completo en cada sync)
+    # ------------------------------------------------------------------
+    async def sync_inventory(self, db: AsyncSession, rows: list[dict]) -> int:
+        await db.execute(delete(IdmsInventory))
+        if rows:
+            await db.execute(insert(IdmsInventory), rows)
+        await db.commit()
+        return len(rows)
+
+    async def list_inventory(self, db: AsyncSession) -> list[IdmsInventory]:
+        result = await db.execute(
+            select(IdmsInventory)
+            .where(IdmsInventory.deleted_at.is_(None))
+            .order_by(IdmsInventory.dol.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_inventory_kpis(self, db: AsyncSession) -> dict:
+        result = await db.execute(
+            select(
+                func.count(IdmsInventory.id).label("count"),
+                func.coalesce(func.sum(IdmsInventory.price), Decimal("0")).label(
+                    "total_price"
+                ),
+                func.coalesce(func.sum(IdmsInventory.wholesale_price), Decimal("0")).label(
+                    "total_wholesale"
+                ),
+                func.coalesce(func.avg(IdmsInventory.dol), 0).label("avg_dol"),
+                func.coalesce(func.max(IdmsInventory.dol), 0).label("max_dol"),
+                func.max(IdmsInventory.snapshot_date).label("snapshot_date"),
+                func.max(IdmsInventory.imported_at).label("imported_at"),
+            ).where(IdmsInventory.deleted_at.is_(None))
+        )
+        row = result.one()
+        return {
+            "count": row.count or 0,
+            "total_price": row.total_price or Decimal("0"),
+            "total_wholesale": row.total_wholesale or Decimal("0"),
+            "avg_dol": float(row.avg_dol or 0),
+            "max_dol": int(row.max_dol or 0),
+            "snapshot_date": row.snapshot_date,
+            "imported_at": row.imported_at,
+        }
+
+    async def get_inventory_aging(self, db: AsyncSession) -> list[dict]:
+        bucket_col = case(
+            (IdmsInventory.dol <= 7, "0-7d"),
+            (IdmsInventory.dol <= 14, "8-14d"),
+            (IdmsInventory.dol <= 30, "15-30d"),
+            (IdmsInventory.dol <= 60, "31-60d"),
+            else_="60+d",
+        ).label("bucket")
+        result = await db.execute(
+            select(
+                bucket_col,
+                func.count(IdmsInventory.id).label("count"),
+                func.coalesce(func.sum(IdmsInventory.price), Decimal("0")).label(
+                    "total_price"
+                ),
+            )
+            .where(
+                IdmsInventory.deleted_at.is_(None),
+                IdmsInventory.dol.isnot(None),
+            )
+            .group_by(bucket_col)
+            .order_by(func.min(IdmsInventory.dol))
+        )
+        return [
+            {
+                "bucket": r.bucket,
+                "count": r.count,
+                "total_price": r.total_price or Decimal("0"),
             }
             for r in result.all()
         ]

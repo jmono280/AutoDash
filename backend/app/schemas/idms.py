@@ -238,6 +238,58 @@ class IdmsSalesByVehicleOut(BaseModel):
     gross_profit: Decimal
 
 
+# ---------------------------------------------------------------------------
+# Inventario
+# ---------------------------------------------------------------------------
+
+
+class IdmsInventoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    snapshot_date: date
+    inventory_id: str | None
+    dealer_id: str | None
+    stock_number: str | None
+    vehicle_year: str | None
+    vin_last6: str | None
+    inventory_flags: str | None
+    make: str | None
+    model_trim: str | None
+    exterior_color: str | None
+    acq_date: date | None
+    dol: int | None
+    status: str | None
+    alternate_lot: str | None
+    price: Decimal
+    wholesale_price: Decimal
+    mileage: int | None
+    imported_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None
+
+
+class IdmsInventoryKpisOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    count: int
+    total_price: Decimal
+    total_wholesale: Decimal
+    avg_dol: float
+    max_dol: int
+    snapshot_date: date | None
+    imported_at: datetime | None
+
+
+class IdmsInventoryAgingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    bucket: str
+    count: int
+    total_price: Decimal
+
+
 class IdmsSessionStatusOut(BaseModel):
     authenticated: bool
     mfa_required: bool = False
