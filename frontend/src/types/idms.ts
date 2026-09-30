@@ -2,6 +2,8 @@ export interface IdmsSessionStatus {
   authenticated: boolean
   mfa_required: boolean
   message: string
+  sync_warning: string | null
+  sync_warning_at: string | null
 }
 
 export interface IdmsSyncResult {

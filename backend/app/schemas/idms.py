@@ -294,3 +294,5 @@ class IdmsSessionStatusOut(BaseModel):
     authenticated: bool
     mfa_required: bool = False
     message: str = ""
+    sync_warning: str | None = None
+    sync_warning_at: str | None = None

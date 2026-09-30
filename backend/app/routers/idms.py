@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 from datetime import date
 
+import requests
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -35,10 +36,28 @@ router = APIRouter()
 
 class OtpPayload(BaseModel):
     otp_code: str | None = None
+    force: bool = False
 
 
 def _service() -> IdmsService:
     return IdmsService()
+
+
+async def _run_idms_sync(coro):
+    """Traduce fallos de sesión/conexión con IDMS a un 502 con el detalle real.
+
+    Sin este catch, una excepción no manejada la agarra el middleware de error
+    por defecto de Starlette, que queda *fuera* del CORSMiddleware — la
+    respuesta 500 sale sin el header Access-Control-Allow-Origin y el
+    navegador la bloquea, así que el frontend ve un "Network Error" genérico
+    en vez del mensaje real (típicamente: sesión IDMS caída por idle timeout).
+    """
+    try:
+        return await coro
+    except (RuntimeError, requests.exceptions.RequestException) as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Error sincronizando con IDMS: {exc}"
+        )
 
 
 @router.get("/session", response_model=IdmsSessionStatusOut)
@@ -56,7 +75,10 @@ async def login(
     service: IdmsService = Depends(_service),
     _: User = Depends(get_current_user),
 ) -> IdmsSessionStatusOut:
-    data = service.login(otp_code=body.otp_code)
+    try:
+        data = service.login(otp_code=body.otp_code, force=body.force)
+    except (RuntimeError, requests.exceptions.RequestException) as exc:
+        raise HTTPException(status_code=502, detail=f"Error logueando en IDMS: {exc}")
     return IdmsSessionStatusOut(**data)
 
 
@@ -67,7 +89,7 @@ async def sync_charge_offs(
     service: IdmsService = Depends(_service),
     _: User = Depends(get_current_user),
 ) -> IdmsSyncOut:
-    return await service.sync_charge_offs(db, year=year)
+    return await _run_idms_sync(service.sync_charge_offs(db, year=year))
 
 
 @router.post(
@@ -167,7 +189,7 @@ async def sync_month_end(
     service: IdmsService = Depends(_service),
     _: User = Depends(get_current_user),
 ) -> IdmsSyncOut:
-    return await service.sync_month_end(db)
+    return await _run_idms_sync(service.sync_month_end(db))
 
 
 # ------------------------------------------------------------------
@@ -182,7 +204,7 @@ async def sync_sales(
     service: IdmsService = Depends(_service),
     _: User = Depends(get_current_user),
 ) -> IdmsSyncOut:
-    return await service.sync_sales(db, year=year)
+    return await _run_idms_sync(service.sync_sales(db, year=year))
 
 
 @router.post(
@@ -293,6 +315,10 @@ async def sync_inventory(
         # el módulo fastapi.status importado arriba, por eso el código va
         # literal en vez de status.HTTP_409_CONFLICT.
         raise HTTPException(status_code=409, detail=str(exc))
+    except (RuntimeError, requests.exceptions.RequestException) as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Error sincronizando con IDMS: {exc}"
+        )
 
 
 @router.get("/inventory", response_model=list[IdmsInventoryOut])

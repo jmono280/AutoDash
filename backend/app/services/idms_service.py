@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import io
 from datetime import date
+from typing import Callable, TypeVar
 
+import requests
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Alignment, Font
@@ -24,6 +26,8 @@ from app.models.idms_inventory import IdmsInventory
 from app.repositories.idms_repo import IdmsRepository
 from app.schemas.idms import IdmsSyncOut
 from app.services.idms_inventory_pdf import build_inventory_pdf
+
+_T = TypeVar("_T")
 
 INVENTORY_XLSX_HEADERS = [
     "Stock #", "Year", "Make", "Model/Trim", "Color", "VIN Last 6",
@@ -216,17 +220,47 @@ class IdmsService:
     # ------------------------------------------------------------------
     def check_session(self) -> dict:
         client = IdmsClient()
-        if client.load_session() and client.is_authenticated():
-            return {"authenticated": True, "message": "Sesión activa"}
-        return {"authenticated": False, "message": "Sin sesión activa"}
+        authenticated = bool(client.load_session() and client.is_authenticated())
+        if not authenticated:
+            return {"authenticated": False, "message": "Sin sesión activa"}
 
-    def login(self, otp_code: str | None = None) -> dict:
+        last_error = client.last_sync_error()
+        if last_error:
+            return {
+                "authenticated": True,
+                "message": (
+                    "Sesión de IDMS activa, pero la última sincronización falló "
+                    "— probá reconectar: " + last_error["message"]
+                ),
+                "sync_warning": last_error["message"],
+                "sync_warning_at": last_error["at"],
+            }
+        return {"authenticated": True, "message": "Sesión activa"}
+
+    def login(self, otp_code: str | None = None, force: bool = False) -> dict:
         client = IdmsClient()
         try:
-            client.login(otp_code=otp_code)
+            client.login(otp_code=otp_code, force=force)
         except MfaRequired as exc:
             return {"authenticated": False, "mfa_required": True, "message": exc.message}
+        # Login explícito y exitoso: limpiamos el aviso de sync para que el
+        # usuario vea de inmediato que la reconexión tuvo efecto, aunque la
+        # confirmación definitiva llegue con el próximo sync exitoso.
+        client.clear_sync_error()
         return {"authenticated": True, "message": "Sesión iniciada"}
+
+    @staticmethod
+    def _fetch_or_record(client: IdmsClient, fetch: Callable[[], _T]) -> _T:
+        """Ejecuta `fetch()` contra IDMS; si falla, guarda el detalle real para
+        que /idms/session avise aunque el login básico (is_authenticated) siga
+        reportando la sesión como activa."""
+        try:
+            result = fetch()
+        except (RuntimeError, requests.exceptions.RequestException) as exc:
+            client.record_sync_error(str(exc))
+            raise
+        client.clear_sync_error()
+        return result
 
     # ------------------------------------------------------------------
     # Charge Offs
@@ -236,7 +270,9 @@ class IdmsService:
     ) -> IdmsSyncOut:
         client = IdmsClient()
         client.login()
-        raw = client.export_csv(IDMS_CHARGE_OFF_REPORT_ID, export_type="csv")
+        raw = self._fetch_or_record(
+            client, lambda: client.export_csv(IDMS_CHARGE_OFF_REPORT_ID, export_type="csv")
+        )
         rows = parse_report(IDMS_CHARGE_OFF_REPORT_ID, raw)
         # Se sincronizan solo los años presentes en el reporte descargado,
         # preservando los históricos cargados desde Excel.
@@ -288,7 +324,9 @@ class IdmsService:
         snapshot = date.today()
         client = IdmsClient()
         client.login()
-        raw = client.export_csv(IDMS_MONTH_END_REPORT_ID, export_type="csv")
+        raw = self._fetch_or_record(
+            client, lambda: client.export_csv(IDMS_MONTH_END_REPORT_ID, export_type="csv")
+        )
         rows = parse_aa_month_end(raw, snapshot)
         inserted = await self.repo.sync_month_end(
             db, rows, year=snapshot.year, month=snapshot.month
@@ -311,7 +349,9 @@ class IdmsService:
     ) -> IdmsSyncOut:
         client = IdmsClient()
         client.login()
-        raw = client.export_csv(IDMS_SALES_REPORT_ID, export_type="csv")
+        raw = self._fetch_or_record(
+            client, lambda: client.export_csv(IDMS_SALES_REPORT_ID, export_type="csv")
+        )
         rows = parse_report(IDMS_SALES_REPORT_ID, raw)
         inserted = await self.repo.sync_sales(db, rows)
         return IdmsSyncOut(
@@ -359,7 +399,7 @@ class IdmsService:
     ) -> IdmsSyncOut:
         client = IdmsClient()
         client.login()
-        html = client.fetch_inventory(status=status)
+        html = self._fetch_or_record(client, lambda: client.fetch_inventory(status=status))
         rows = parse_inventory(html)
         inserted = await self.repo.sync_inventory(db, rows)
         return IdmsSyncOut(

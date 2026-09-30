@@ -1146,7 +1146,7 @@ export default function IdmsDashboard() {
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
         />
         <button
-          onClick={() => login(otp || undefined)}
+          onClick={() => login({ otpCode: otp || undefined, force: true })}
           disabled={isLoginLoading}
           className="w-full rounded-md bg-[#ffea00] px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-yellow-300 disabled:opacity-50"
         >
@@ -1160,6 +1160,34 @@ export default function IdmsDashboard() {
 
   return (
     <div className="space-y-4">
+      {session?.sync_warning && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div>
+            <p className="font-semibold">La última sincronización con IDMS falló</p>
+            <p className="text-amber-700">
+              La sesión básica sigue activa, pero probablemente IDMS necesita
+              que vuelvas a loguearte. Detalle: {session.sync_warning}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="Código MFA (si aplica)"
+              maxLength={6}
+              className="w-40 rounded-md border border-amber-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffea00]"
+            />
+            <button
+              onClick={() => login({ otpCode: otp || undefined, force: true })}
+              disabled={isLoginLoading}
+              className="whitespace-nowrap rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              {isLoginLoading ? 'Reconectando...' : 'Reconectar IDMS'}
+            </button>
+          </div>
+        </div>
+      )}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex gap-6" aria-label="Tabs">
           <button

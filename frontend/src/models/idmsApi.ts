@@ -21,9 +21,9 @@ export const idmsApi = {
   session: () =>
     api.get<IdmsSessionStatus>('/idms/session').then((r) => r.data),
 
-  login: (otpCode?: string) =>
+  login: (otpCode?: string, force?: boolean) =>
     api
-      .post<IdmsSessionStatus>('/idms/login', { otp_code: otpCode })
+      .post<IdmsSessionStatus>('/idms/login', { otp_code: otpCode, force })
       .then((r) => r.data),
 
   syncChargeOffs: (year: number) =>

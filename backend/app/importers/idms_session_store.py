@@ -59,3 +59,23 @@ class IdmsSessionStore:
     def clear(self) -> None:
         if self.path.exists():
             self.path.unlink()
+
+    def save_error(self, message: str) -> dict:
+        """Registra el último fallo de sync con IDMS (sesión viva ≠ sync exitoso:
+        el login básico puede seguir activo aunque el motor de reportes falle)."""
+        data = self.load() or {}
+        error = {"message": message, "at": datetime.now(timezone.utc).isoformat()}
+        data["last_sync_error"] = error
+        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        os.chmod(self.path, 0o600)
+        return error
+
+    def clear_error(self) -> None:
+        data = self.load()
+        if data and "last_sync_error" in data:
+            data.pop("last_sync_error")
+            self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def last_error(self) -> Optional[dict]:
+        data = self.load()
+        return data.get("last_sync_error") if data else None

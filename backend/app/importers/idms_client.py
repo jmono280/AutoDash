@@ -6,6 +6,7 @@ import html as htmlmod
 import json
 import re
 import time
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote, urlparse
 
@@ -77,16 +78,40 @@ class IdmsClient:
         )
         return r.status_code == 200 and "LoginFormElement" not in r.text
 
+    def record_sync_error(self, message: str) -> None:
+        """Guarda el último fallo real al intentar sincronizar con IDMS.
+
+        `is_authenticated` solo verifica el login básico (home page); el motor
+        de reportes o la búsqueda de inventario pueden fallar aparte, así que
+        esto le da a /idms/session una señal que is_authenticated no ve.
+        """
+        self.store.save_error(message)
+
+    def clear_sync_error(self) -> None:
+        self.store.clear_error()
+
+    def last_sync_error(self) -> Optional[dict]:
+        return self.store.last_error()
+
     # ------------------------------------------------------------------
     # Login
     # ------------------------------------------------------------------
-    def login(self, otp_code: Optional[str] = None) -> bool:
+    def login(self, otp_code: Optional[str] = None, force: bool = False) -> bool:
         """
         Inicia sesión en IDMS. Si ya hay sesión válida la reutiliza.
         Si se necesita MFA y no se pasa otp_code se lanza MfaRequired.
+
+        `force=True` ignora la sesión guardada y hace un login completo nuevo.
+        Es necesario porque `is_authenticated` solo comprueba que cargue la
+        home page de IDMS: esa cookie puede seguir "viva" para eso mientras el
+        motor de reportes o la búsqueda de inventario ya la rechazan, así que
+        reintentar sync sin forzar termina reusando la misma cookie degradada.
         """
-        if self.load_session() and self.is_authenticated():
+        if not force and self.load_session() and self.is_authenticated():
             return True
+
+        if force:
+            self.store.clear()
 
         # Limpiar cookies previas para un login limpio
         self.session = requests.Session()
@@ -220,10 +245,18 @@ class IdmsClient:
         # 9. confirmed final → form POST a IDMS
         self._finish_login(trans3, csrf3, referer)
 
-    def _b2c_self_asserted(self, trans: str, csrf: str, referer: str, data: dict):
+    def _b2c_self_asserted(
+        self,
+        trans: str,
+        csrf: str,
+        referer: str,
+        data: dict,
+        base: Optional[str] = None,
+        policy: str = "B2C_1A_HRDSignIn_NS",
+    ):
         r = self.session.post(
-            f"{self.solera_base}/SelfAsserted",
-            params={"tx": trans, "p": "B2C_1A_HRDSignIn_NS"},
+            f"{base or self.solera_base}/SelfAsserted",
+            params={"tx": trans, "p": policy},
             headers={"X-CSRF-TOKEN": csrf, "Referer": referer},
             data={"request": "", **data},
             timeout=30,
@@ -232,28 +265,65 @@ class IdmsClient:
             raise RuntimeError(f"SelfAsserted falló: {r.text[:400]}")
         return r
 
-    def _b2c_confirmed(self, trans: str, csrf: str, referer: str):
+    def _b2c_confirmed(
+        self,
+        trans: str,
+        csrf: str,
+        referer: str,
+        base: Optional[str] = None,
+        policy: str = "B2C_1A_HRDSignIn_NS",
+    ):
         return self.session.get(
-            f"{self.solera_base}/api/CombinedSigninAndSignup/confirmed",
+            f"{base or self.solera_base}/api/CombinedSigninAndSignup/confirmed",
             params={
                 "rememberMe": "true",
                 "csrf_token": csrf,
                 "tx": trans,
-                "p": "B2C_1A_HRDSignIn_NS",
+                "p": policy,
             },
             headers={"Referer": referer},
             timeout=30,
         )
 
+    def _skip_passkey_enrollment(self, html: str, referer: str):
+        """Solera (el proveedor SSO detrás de IDMS) agregó un paso post-MFA
+        que ofrece configurar un passkey. Corre bajo una policy B2C distinta
+        (HRDSignIn_v2, no la NS de todo el flujo anterior) — lo saltamos
+        posteando skipValidationProfile=true, tal como hace el link "Forgot
+        your password?" visible en esa pantalla."""
+        trans, csrf = self._parse_b2c_page(html)
+        tenant_m = re.search(r'"tenant"\s*:\s*"([^"]+)"', html)
+        policy_m = re.search(r'"policy"\s*:\s*"([^"]+)"', html)
+        if not tenant_m or not policy_m:
+            raise RuntimeError("No se pudo parsear el paso de passkey enrollment de IDMS")
+        base = f"https://na.login.solera.com{tenant_m.group(1)}"
+        policy = policy_m.group(1)
+        self._b2c_self_asserted(
+            trans, csrf, referer, {"request": "skipValidationProfile=true"},
+            base=base, policy=policy,
+        )
+        return self._b2c_confirmed(trans, csrf, referer, base=base, policy=policy)
+
     def _finish_login(self, trans: str, csrf: str, referer: str):
         r = self._b2c_confirmed(trans, csrf, referer)
-        # Busca form de auto-submit a /Security/SignInWithMFA
-        m = re.search(r'<form[^>]*action=[\'"]([^\'"]+)[\'"]', r.text, re.I)
-        if not m:
-            raise RuntimeError("No se encontró el form de callback a IDMS")
-        action = m.group(1)
-        if not action.startswith("http"):
-            raise RuntimeError(f"El form de callback a IDMS no tiene URL válida: {action}")
+        if "passkeyEnrollExistingUser" in r.text:
+            r = self._skip_passkey_enrollment(r.text, referer)
+        # Busca form de auto-submit a /Security/SignInWithMFA. La página puede
+        # traer más de un <form> (algunos de UI, con action="javascript:..."),
+        # así que no asumimos que el primero es el de callback: tomamos el
+        # primero cuya action sea una URL http(s) real.
+        actions = re.findall(r'<form[^>]*action=[\'"]([^\'"]+)[\'"]', r.text, re.I)
+        action = next((a for a in actions if a.startswith("http")), None)
+        if not action:
+            try:
+                Path("data/idms_debug_callback.html").write_text(r.text, encoding="utf-8")
+            except OSError:
+                pass
+            raise RuntimeError(
+                "No se encontró un form de callback con URL válida a IDMS "
+                f"(forms vistos: {actions!r}) — HTML volcado en "
+                "data/idms_debug_callback.html"
+            )
         fields = {}
         for tag in re.findall(r'<input[^>]*>', r.text):
             name = re.search(r'name=[\'"]([^\'"]+)[\'"]', tag)

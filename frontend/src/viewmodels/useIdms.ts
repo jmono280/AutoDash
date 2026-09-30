@@ -12,7 +12,8 @@ export function useIdms() {
   })
 
   const loginMutation = useMutation({
-    mutationFn: (otpCode?: string) => idmsApi.login(otpCode),
+    mutationFn: ({ otpCode, force }: { otpCode?: string; force?: boolean }) =>
+      idmsApi.login(otpCode, force),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['idms', 'session'] })
     },
