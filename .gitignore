@@ -35,3 +35,4 @@ uploads/*
 
 # Sesiones IDMS (cookies/tokens)
 backend/data/
+IDMS_REPORTS.md

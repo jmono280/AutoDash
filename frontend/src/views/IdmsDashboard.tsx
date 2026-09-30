@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
@@ -11,6 +14,7 @@ import {
 } from 'recharts'
 import { useIdms } from '@/viewmodels/useIdms'
 import { useIdmsSales } from '@/viewmodels/useIdmsSales'
+import { useIdmsInventory } from '@/viewmodels/useIdmsInventory'
 import Spinner from '@/components/ui/Spinner'
 import EmptyState from '@/components/ui/EmptyState'
 import DataTable from '@/components/ui/DataTable'
@@ -19,6 +23,7 @@ import type {
   IdmsChargeOff,
   IdmsChargeOffMonthlyDetail,
   IdmsDelta,
+  IdmsInventory,
   IdmsSales,
   IdmsSalesBySalesperson,
   IdmsSalesByVehicle,
@@ -817,6 +822,295 @@ function SalesTab() {
   )
 }
 
+// ── Inventario ───────────────────────────────────────────────────────────────
+
+const AGING_COLORS: Record<string, string> = {
+  '0-7d': '#1D9E75',
+  '8-14d': '#378ADD',
+  '15-30d': '#534AB7',
+  '31-60d': '#BA7517',
+  '60+d': '#A32D2D',
+}
+
+// Paleta categórica para flags/canales — el conjunto de valores no está
+// predefinido (IDMS puede agregar canales nuevos), así que el color se deriva
+// de un hash del texto en vez de mantener una lista a mano.
+const FLAG_PALETTE = [
+  '#534AB7', // púrpura — volumen
+  '#1D9E75', // verde — positivo
+  '#378ADD', // azul — horas
+  '#BA7517', // ámbar — warning
+  '#A32D2D', // rojo — vencido
+  '#0E7490', // teal
+  '#C2410C', // naranja
+  '#7C3AED', // violeta
+  '#0F766E', // verde azulado
+  '#BE185D', // rosa
+]
+
+function splitFlags(value: string | null): string[] {
+  if (!value) return []
+  return value
+    .split(',')
+    .map((f) => f.trim())
+    .filter(Boolean)
+}
+
+function flagColor(flag: string): string {
+  let hash = 0
+  for (let i = 0; i < flag.length; i++) {
+    hash = (hash * 31 + flag.charCodeAt(i)) >>> 0
+  }
+  return FLAG_PALETTE[hash % FLAG_PALETTE.length]
+}
+
+function FlagBadge({ flag }: { flag: string }) {
+  const color = flagColor(flag)
+  return (
+    <span
+      className="mr-1 mb-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium"
+      style={{ backgroundColor: `${color}1A`, color }}
+    >
+      {flag}
+    </span>
+  )
+}
+
+const INVENTORY_DETAIL_COLUMNS: Column<IdmsInventory>[] = [
+  { key: 'stock_number', header: 'Stock #' },
+  {
+    key: 'vehicle',
+    header: 'Vehículo',
+    render: (r) =>
+      [r.vehicle_year, r.make, r.model_trim].filter(Boolean).join(' ') || '—',
+  },
+  { key: 'exterior_color', header: 'Color' },
+  { key: 'acq_date', header: 'Adquirido', render: (r) => fmtDate(r.acq_date) },
+  { key: 'dol', header: 'DOL', className: 'text-right' },
+  {
+    key: 'price',
+    header: 'Asking Price',
+    className: 'text-right',
+    render: (r) => fmt$(r.price),
+  },
+  {
+    key: 'wholesale_price',
+    header: 'Wholesale $',
+    className: 'text-right',
+    render: (r) => fmt$(r.wholesale_price),
+  },
+  { key: 'mileage', header: 'Millaje', className: 'text-right', render: (r) => fmtN(r.mileage) },
+  { key: 'alternate_lot', header: 'Alternate Lot' },
+  {
+    key: 'inventory_flags',
+    header: 'Publicado en',
+    render: (r) => {
+      const flags = splitFlags(r.inventory_flags)
+      return flags.length > 0 ? (
+        <div className="flex max-w-xs flex-wrap">
+          {flags.map((f) => (
+            <FlagBadge key={f} flag={f} />
+          ))}
+        </div>
+      ) : (
+        '—'
+      )
+    },
+  },
+]
+
+function InventoryTab() {
+  const {
+    sync,
+    syncResult,
+    syncError,
+    isSyncing,
+    exportExcel,
+    isExporting,
+    exportError,
+    exportPdf,
+    isExportingPdf,
+    exportPdfError,
+    kpis,
+    aging,
+    detail,
+    isLoading,
+  } = useIdmsInventory()
+
+  const [selectedFlags, setSelectedFlags] = useState<Set<string>>(new Set())
+
+  const agingData = aging.map((a) => ({
+    bucket: a.bucket,
+    units: a.count,
+    price: n(a.total_price),
+  }))
+
+  const flagCounts = new Map<string, number>()
+  for (const row of detail) {
+    for (const f of splitFlags(row.inventory_flags)) {
+      flagCounts.set(f, (flagCounts.get(f) ?? 0) + 1)
+    }
+  }
+  const allFlags = [...flagCounts.keys()].sort((a, b) => a.localeCompare(b))
+
+  const toggleFlag = (flag: string) => {
+    setSelectedFlags((prev) => {
+      const next = new Set(prev)
+      if (next.has(flag)) next.delete(flag)
+      else next.add(flag)
+      return next
+    })
+  }
+
+  const filteredDetail =
+    selectedFlags.size === 0
+      ? detail
+      : detail.filter((row) =>
+          splitFlags(row.inventory_flags).some((f) => selectedFlags.has(f)),
+        )
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Inventario</h1>
+          <p className="text-sm text-gray-500">
+            Snapshot de IDMS — Automania
+            {kpis?.snapshot_date ? ` · ${kpis.snapshot_date}` : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => exportExcel()}
+            disabled={isExporting || !detail.length}
+            className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isExporting ? 'Exportando...' : 'Descargar Excel'}
+          </button>
+          <button
+            onClick={() => exportPdf()}
+            disabled={isExportingPdf || !detail.length}
+            className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isExportingPdf ? 'Exportando...' : 'Descargar PDF'}
+          </button>
+          <button
+            onClick={() => sync()}
+            disabled={isSyncing}
+            className="rounded-md bg-[#ffea00] px-4 py-1.5 text-sm font-semibold text-gray-900 hover:bg-yellow-300 disabled:opacity-50"
+          >
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar inventario'}
+          </button>
+        </div>
+      </div>
+
+      {syncResult && (
+        <div className="rounded-md bg-green-50 p-3 text-sm text-green-700">
+          {syncResult.message}
+        </div>
+      )}
+      {syncError && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{syncError}</div>
+      )}
+      {exportError && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{exportError}</div>
+      )}
+      {exportPdfError && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{exportPdfError}</div>
+      )}
+
+      {isLoading && !kpis ? (
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
+      ) : kpis && kpis.count > 0 ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <SimpleKpiCard label="Unidades" value={fmtN(kpis.count)} />
+            <SimpleKpiCard label="Asking Price Total" value={fmt$(kpis.total_price)} />
+            <SimpleKpiCard label="Wholesale Total" value={fmt$(kpis.total_wholesale)} />
+            <SimpleKpiCard label="DOL Promedio" value={n(kpis.avg_dol).toFixed(0)} />
+            <SimpleKpiCard label="DOL Máximo" value={fmtN(kpis.max_dol)} />
+          </div>
+
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Antigüedad en lote (DOL)
+            </h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={agingData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="bucket" />
+                  <YAxis />
+                  <Tooltip formatter={(v: number) => fmtN(v)} />
+                  <Bar dataKey="units" name="Unidades">
+                    {agingData.map((d) => (
+                      <Cell key={d.bucket} fill={AGING_COLORS[d.bucket] ?? '#534AB7'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-gray-700">
+                Detalle de inventario ({filteredDetail.length}
+                {selectedFlags.size > 0 ? ` de ${detail.length}` : ''})
+              </h3>
+              {selectedFlags.size > 0 && (
+                <button
+                  onClick={() => setSelectedFlags(new Set())}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-700"
+                >
+                  Limpiar filtro
+                </button>
+              )}
+            </div>
+
+            {allFlags.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {allFlags.map((flag) => {
+                  const active = selectedFlags.has(flag)
+                  const color = flagColor(flag)
+                  return (
+                    <button
+                      key={flag}
+                      onClick={() => toggleFlag(flag)}
+                      className="rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+                      style={
+                        active
+                          ? { backgroundColor: color, borderColor: color, color: '#fff' }
+                          : { backgroundColor: `${color}1A`, borderColor: `${color}55`, color }
+                      }
+                    >
+                      {flag} · {flagCounts.get(flag)}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <DataTable
+              columns={INVENTORY_DETAIL_COLUMNS}
+              data={filteredDetail}
+              pageSize={20}
+              emptyText="Sin unidades en inventario."
+            />
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          title="Sin datos de inventario"
+          description="Sincronizá con IDMS para cargar el snapshot de inventario."
+        />
+      )}
+    </div>
+  )
+}
+
 // ── Vista principal con tabs ─────────────────────────────────────────────────
 
 export default function IdmsDashboard() {
@@ -829,7 +1123,9 @@ export default function IdmsDashboard() {
     loginError,
   } = useIdms()
 
-  const [activeTab, setActiveTab] = useState<'charge-offs' | 'sales'>('charge-offs')
+  const [activeTab, setActiveTab] = useState<'charge-offs' | 'sales' | 'inventory'>(
+    'charge-offs',
+  )
   const [otp, setOtp] = useState('')
 
   if (!isAuthenticated) {
@@ -886,10 +1182,22 @@ export default function IdmsDashboard() {
           >
             Sales
           </button>
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`border-b-2 px-1 py-3 text-sm font-semibold ${
+              activeTab === 'inventory'
+                ? 'border-[#ffea00] text-gray-900'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Inventario
+          </button>
         </nav>
       </div>
 
-      {activeTab === 'charge-offs' ? <ChargeOffsTab /> : <SalesTab />}
+      {activeTab === 'charge-offs' && <ChargeOffsTab />}
+      {activeTab === 'sales' && <SalesTab />}
+      {activeTab === 'inventory' && <InventoryTab />}
     </div>
   )
 }

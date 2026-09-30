@@ -183,3 +183,44 @@ export interface IdmsSalesByVehicle {
   sales_price: string
   gross_profit: string
 }
+
+export interface IdmsInventory {
+  id: string
+  snapshot_date: string
+  inventory_id: string | null
+  dealer_id: string | null
+  stock_number: string | null
+  vehicle_year: string | null
+  vin_last6: string | null
+  inventory_flags: string | null
+  make: string | null
+  model_trim: string | null
+  exterior_color: string | null
+  acq_date: string | null
+  dol: number | null
+  status: string | null
+  alternate_lot: string | null
+  price: string
+  wholesale_price: string
+  mileage: number | null
+  imported_at: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface IdmsInventoryKpis {
+  count: number
+  total_price: string
+  total_wholesale: string
+  avg_dol: number
+  max_dol: number
+  snapshot_date: string | null
+  imported_at: string | null
+}
+
+export interface IdmsInventoryAging {
+  bucket: string
+  count: number
+  total_price: string
+}

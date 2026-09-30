@@ -5,6 +5,9 @@ import type {
   IdmsChargeOffMonthly,
   IdmsChargeOffMonthlyDetail,
   IdmsChargeOffOverview,
+  IdmsInventory,
+  IdmsInventoryAging,
+  IdmsInventoryKpis,
   IdmsSales,
   IdmsSalesBySalesperson,
   IdmsSalesByVehicle,
@@ -103,4 +106,32 @@ export const idmsApi = {
     api
       .get<IdmsSalesByVehicle[]>('/idms/sales/by-vehicle', { params: { year } })
       .then((r) => r.data),
+
+  syncInventory: () =>
+    api.post<IdmsSyncResult>('/idms/inventory/sync').then((r) => r.data),
+
+  getInventory: () =>
+    api.get<IdmsInventory[]>('/idms/inventory').then((r) => r.data),
+
+  getInventoryKpis: () =>
+    api.get<IdmsInventoryKpis>('/idms/inventory/kpis').then((r) => r.data),
+
+  getInventoryAging: () =>
+    api.get<IdmsInventoryAging[]>('/idms/inventory/aging').then((r) => r.data),
+
+  exportInventory: () =>
+    api
+      .get('/idms/inventory/export', { responseType: 'blob' })
+      .then((r) => {
+        const match = /filename="?([^"]+)"?/.exec(r.headers['content-disposition'] ?? '')
+        return { blob: r.data as Blob, filename: match?.[1] ?? 'inventario.xlsx' }
+      }),
+
+  exportInventoryPdf: () =>
+    api
+      .get('/idms/inventory/export-pdf', { responseType: 'blob' })
+      .then((r) => {
+        const match = /filename="?([^"]+)"?/.exec(r.headers['content-disposition'] ?? '')
+        return { blob: r.data as Blob, filename: match?.[1] ?? 'inventario.pdf' }
+      }),
 }
