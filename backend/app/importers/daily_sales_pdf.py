@@ -18,11 +18,23 @@ def _parse_date(s: str) -> date:
 
 
 def _money(s: str) -> Decimal:
-    return Decimal(s.lstrip("$").replace(",", ""))
+    s = s.strip()
+    # Notación contable: paréntesis = negativo, p. ej. "($12.02)" en días con
+    # reversos/correcciones.
+    negative = s.startswith("(") and s.endswith(")")
+    if negative:
+        s = s[1:-1]
+    value = Decimal(s.lstrip("$").replace(",", ""))
+    return -value if negative else value
 
 
 def _pct(s: str) -> Decimal:
-    return Decimal(s.rstrip("%"))
+    s = s.strip()
+    negative = s.startswith("(") and s.endswith(")")
+    if negative:
+        s = s[1:-1]
+    value = Decimal(s.rstrip("%"))
+    return -value if negative else value
 
 
 def parse_daily_sales(file_bytes: bytes) -> tuple[list[dict], date, date]:
