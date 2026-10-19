@@ -2,6 +2,17 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { idmsApi } from '@/models/idmsApi'
 
+function downloadFile(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function useIdms() {
   const queryClient = useQueryClient()
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
@@ -63,6 +74,11 @@ export function useIdms() {
     queryFn: () => idmsApi.getChargeOffs(activeYear),
   })
 
+  const exportOverviewPdfMutation = useMutation({
+    mutationFn: (year: number) => idmsApi.exportChargeOffOverviewPdf(year),
+    onSuccess: ({ blob, filename }) => downloadFile(blob, filename),
+  })
+
   const isLoading =
     sessionQuery.isLoading ||
     yearsQuery.isLoading ||
@@ -94,6 +110,10 @@ export function useIdms() {
     monthly: monthlyQuery.data ?? [],
     priorMonthly: priorMonthlyQuery.data ?? [],
     detail: detailQuery.data ?? [],
+
+    exportOverviewPdf: exportOverviewPdfMutation.mutate,
+    isExportingOverviewPdf: exportOverviewPdfMutation.isPending,
+    exportOverviewPdfError: exportOverviewPdfMutation.error?.message || null,
 
     isLoading,
   }

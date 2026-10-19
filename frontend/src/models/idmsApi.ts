@@ -134,4 +134,12 @@ export const idmsApi = {
         const match = /filename="?([^"]+)"?/.exec(r.headers['content-disposition'] ?? '')
         return { blob: r.data as Blob, filename: match?.[1] ?? 'inventario.pdf' }
       }),
+
+  exportChargeOffOverviewPdf: (year: number) =>
+    api
+      .get('/idms/charge-offs/export-pdf', { params: { year }, responseType: 'blob' })
+      .then((r) => {
+        const match = /filename="?([^"]+)"?/.exec(r.headers['content-disposition'] ?? '')
+        return { blob: r.data as Blob, filename: match?.[1] ?? `charge_offs_overview_${year}.pdf` }
+      }),
 }

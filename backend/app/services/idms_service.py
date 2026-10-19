@@ -25,6 +25,7 @@ from app.importers.idms_parsers import (
 from app.models.idms_inventory import IdmsInventory
 from app.repositories.idms_repo import IdmsRepository
 from app.schemas.idms import IdmsSyncOut
+from app.services.idms_chargeoff_pdf import build_charge_off_overview_pdf
 from app.services.idms_inventory_pdf import build_inventory_pdf
 
 _T = TypeVar("_T")
@@ -315,6 +316,11 @@ class IdmsService:
 
     async def get_charge_off_monthly_detail(self, db: AsyncSession, year: int):
         return await self.repo.get_charge_off_monthly_detail(db, year)
+
+    async def export_charge_off_overview_pdf(self, db: AsyncSession, year: int) -> bytes:
+        overview = await self.get_charge_off_overview(db, year)
+        monthly = await self.get_charge_off_monthly_detail(db, year)
+        return build_charge_off_overview_pdf(overview, monthly)
 
     # ------------------------------------------------------------------
     # Month End (snapshot de cartera)

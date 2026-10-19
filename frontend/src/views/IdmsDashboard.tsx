@@ -264,6 +264,9 @@ function ChargeOffsTab() {
     monthly,
     priorMonthly,
     detail,
+    exportOverviewPdf,
+    isExportingOverviewPdf,
+    exportOverviewPdfError,
     isLoading,
   } = useIdms()
 
@@ -324,6 +327,13 @@ function ChargeOffsTab() {
           >
             {isLoading ? 'Sincronizando...' : 'Sincronizar año'}
           </button>
+          <button
+            onClick={() => exportOverviewPdf(activeYear)}
+            disabled={isExportingOverviewPdf || !overview || overview.ytd_count === 0}
+            className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isExportingOverviewPdf ? 'Generando...' : 'Descargar PDF'}
+          </button>
         </div>
       </div>
 
@@ -334,6 +344,11 @@ function ChargeOffsTab() {
       )}
       {syncError && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{syncError}</div>
+      )}
+      {exportOverviewPdfError && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          {exportOverviewPdfError}
+        </div>
       )}
 
       {isLoading && !overview ? (

@@ -183,6 +183,22 @@ async def get_charge_off_monthly_detail(
     return [IdmsChargeOffMonthlyDetailOut(**r) for r in rows]
 
 
+@router.get("/charge-offs/export-pdf")
+async def export_charge_off_overview_pdf(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    service: IdmsService = Depends(_service),
+    _: User = Depends(get_current_user),
+) -> StreamingResponse:
+    content = await service.export_charge_off_overview_pdf(db, year=year)
+    filename = f"charge_offs_overview_{year}.pdf"
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/month-end/sync", response_model=IdmsSyncOut)
 async def sync_month_end(
     db: AsyncSession = Depends(get_db),
