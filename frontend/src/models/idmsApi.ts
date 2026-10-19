@@ -107,8 +107,12 @@ export const idmsApi = {
       .get<IdmsSalesByVehicle[]>('/idms/sales/by-vehicle', { params: { year } })
       .then((r) => r.data),
 
-  syncInventory: () =>
-    api.post<IdmsSyncResult>('/idms/inventory/sync').then((r) => r.data),
+  syncInventory: (includeImages?: boolean) =>
+    api
+      .post<IdmsSyncResult>('/idms/inventory/sync', null, {
+        params: { include_images: includeImages },
+      })
+      .then((r) => r.data),
 
   getInventory: () =>
     api.get<IdmsInventory[]>('/idms/inventory').then((r) => r.data),

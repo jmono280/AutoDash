@@ -320,12 +320,15 @@ async def get_sales_by_vehicle(
 @router.post("/inventory/sync", response_model=IdmsSyncOut)
 async def sync_inventory(
     status: str = Query("A", description="Estado de inventario en IDMS (A = Available)"),
+    include_images: bool = Query(
+        False, description="Incluir hasta 10 fotos por vehículo (más lento)"
+    ),
     db: AsyncSession = Depends(get_db),
     service: IdmsService = Depends(_service),
     _: User = Depends(get_current_user),
 ) -> IdmsSyncOut:
     try:
-        return await service.sync_inventory(db, status=status)
+        return await service.sync_inventory(db, status=status, include_images=include_images)
     except ValueError as exc:
         # 409: el parámetro de query de esta función se llama "status" y tapa
         # el módulo fastapi.status importado arriba, por eso el código va

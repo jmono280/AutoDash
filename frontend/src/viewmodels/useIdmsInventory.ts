@@ -26,7 +26,7 @@ export function useIdmsInventory() {
   const queryClient = useQueryClient()
 
   const syncMutation = useMutation({
-    mutationFn: () => idmsApi.syncInventory(),
+    mutationFn: (includeImages: boolean) => idmsApi.syncInventory(includeImages),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['idms', 'inventory'] })
     },

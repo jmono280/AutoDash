@@ -243,6 +243,14 @@ class IdmsSalesByVehicleOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class IdmsInventoryPhotoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    position: int
+    thumbnail_url: str
+    image_url: str
+
+
 class IdmsInventoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -268,6 +276,7 @@ class IdmsInventoryOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+    photos: list[IdmsInventoryPhotoOut] = []
 
 
 class IdmsInventoryKpisOut(BaseModel):

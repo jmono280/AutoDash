@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import logging
 from datetime import date
 from typing import Callable, TypeVar
 
@@ -20,6 +21,7 @@ from app.importers.idms_parsers import (
     parse_aa_month_end,
     parse_aa_sales_manual,
     parse_inventory,
+    parse_inventory_photos,
     parse_report,
 )
 from app.models.idms_inventory import IdmsInventory
@@ -29,6 +31,7 @@ from app.services.idms_chargeoff_pdf import build_charge_off_overview_pdf
 from app.services.idms_inventory_pdf import build_inventory_pdf
 
 _T = TypeVar("_T")
+logger = logging.getLogger(__name__)
 
 INVENTORY_XLSX_HEADERS = [
     "Stock #", "Year", "Make", "Model/Trim", "Color", "VIN Last 6",
@@ -401,22 +404,51 @@ class IdmsService:
     # Inventario
     # ------------------------------------------------------------------
     async def sync_inventory(
-        self, db: AsyncSession, status: str = "A"
+        self, db: AsyncSession, status: str = "A", include_images: bool = False
     ) -> IdmsSyncOut:
         client = IdmsClient()
         client.login()
         html = self._fetch_or_record(client, lambda: client.fetch_inventory(status=status))
         rows = parse_inventory(html)
         inserted = await self.repo.sync_inventory(db, rows)
+
+        photos_saved = 0
+        if include_images:
+            photo_rows: list[dict] = []
+            for row in rows:
+                inv_id = row.get("inventory_id")
+                if not inv_id:
+                    continue
+                try:
+                    img_html = client.fetch_inventory_images(inv_id)
+                except Exception as exc:
+                    # Un vehículo sin fotos (o que falla al pedirlas) no debe
+                    # tumbar el sync completo — se loggea y se sigue.
+                    logger.warning("No se pudieron traer fotos de %s: %s", inv_id, exc)
+                    continue
+                photo_rows.extend(
+                    parse_inventory_photos(
+                        img_html, inv_id, row.get("dealer_id"), base_url=client.base_url
+                    )
+                )
+            photos_saved = await self.repo.sync_inventory_photos(db, photo_rows)
+
+        message = f"{inserted} unidades de inventario sincronizadas"
+        if include_images:
+            message += f", {photos_saved} fotos guardadas"
         return IdmsSyncOut(
             report_id="inventory-lookup",
             year=0,
             rows_inserted=inserted,
-            message=f"{inserted} unidades de inventario sincronizadas",
+            message=message,
         )
 
     async def get_inventory(self, db: AsyncSession):
-        return await self.repo.list_inventory(db)
+        rows = await self.repo.list_inventory(db)
+        photos_by_id = await self.repo.get_inventory_photos_by_id(db)
+        for row in rows:
+            row.photos = photos_by_id.get(row.inventory_id, [])
+        return rows
 
     async def get_inventory_kpis(self, db: AsyncSession):
         return await self.repo.get_inventory_kpis(db)

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.idms_charge_off import IdmsChargeOff
 from app.models.idms_inventory import IdmsInventory
+from app.models.idms_inventory_photo import IdmsInventoryPhoto
 from app.models.idms_month_end import IdmsMonthEnd
 from app.models.idms_sales import IdmsSales
 
@@ -574,6 +575,15 @@ class IdmsRepository:
         await db.commit()
         return len(rows)
 
+    async def sync_inventory_photos(self, db: AsyncSession, rows: list[dict]) -> int:
+        """Wipe-and-reload de fotos, igual que sync_inventory. Solo se llama
+        cuando el sync corrió con el checkbox "incluir fotos" activado."""
+        await db.execute(delete(IdmsInventoryPhoto))
+        if rows:
+            await db.execute(insert(IdmsInventoryPhoto), rows)
+        await db.commit()
+        return len(rows)
+
     async def list_inventory(self, db: AsyncSession) -> list[IdmsInventory]:
         result = await db.execute(
             select(IdmsInventory)
@@ -581,6 +591,21 @@ class IdmsRepository:
             .order_by(IdmsInventory.dol.desc())
         )
         return list(result.scalars().all())
+
+    async def get_inventory_photos_by_id(
+        self, db: AsyncSession
+    ) -> dict[str, list[IdmsInventoryPhoto]]:
+        """Fotos de todos los vehículos, agrupadas por inventory_id. Vacío si
+        nunca se sincronizó con el checkbox "incluir fotos" activado."""
+        result = await db.execute(
+            select(IdmsInventoryPhoto)
+            .where(IdmsInventoryPhoto.deleted_at.is_(None))
+            .order_by(IdmsInventoryPhoto.inventory_id, IdmsInventoryPhoto.position)
+        )
+        grouped: dict[str, list[IdmsInventoryPhoto]] = {}
+        for photo in result.scalars().all():
+            grouped.setdefault(photo.inventory_id, []).append(photo)
+        return grouped
 
     async def get_inventory_kpis(self, db: AsyncSession) -> dict:
         result = await db.execute(

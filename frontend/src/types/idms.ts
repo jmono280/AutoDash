@@ -186,6 +186,12 @@ export interface IdmsSalesByVehicle {
   gross_profit: string
 }
 
+export interface IdmsInventoryPhoto {
+  position: number
+  thumbnail_url: string
+  image_url: string
+}
+
 export interface IdmsInventory {
   id: string
   snapshot_date: string
@@ -209,6 +215,7 @@ export interface IdmsInventory {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  photos: IdmsInventoryPhoto[]
 }
 
 export interface IdmsInventoryKpis {

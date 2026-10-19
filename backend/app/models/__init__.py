@@ -5,6 +5,7 @@ from .daily_sales import DailySales
 from .hours_summary import HoursSummary
 from .idms_charge_off import IdmsChargeOff
 from .idms_inventory import IdmsInventory
+from .idms_inventory_photo import IdmsInventoryPhoto
 from .idms_month_end import IdmsMonthEnd
 from .idms_sales import IdmsSales
 from .payment_transaction import PaymentTransaction
@@ -26,6 +27,7 @@ __all__ = [
     "CollectionStat",
     "IdmsChargeOff",
     "IdmsInventory",
+    "IdmsInventoryPhoto",
     "IdmsMonthEnd",
     "IdmsSales",
 ]

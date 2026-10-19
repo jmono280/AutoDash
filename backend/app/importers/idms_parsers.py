@@ -533,6 +533,47 @@ def parse_inventory(html: str, snapshot: Optional[date] = None) -> List[Dict[str
     return out
 
 
+def parse_inventory_photos(
+    html: str,
+    inventory_id: str,
+    dealer_id: Optional[str] = None,
+    base_url: str = "https://idms.dealersocket.com",
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """Parsea la pestaña "Images" del detalle de un vehículo
+    (`/pages/inventory/_inventory_images.aspx?qinventory_id=...`).
+
+    Cada <img> trae el thumbnail en `src` (ya con el path completo
+    `/invimages/{dealer_id}/{uuid}.jpg`) y el nombre del archivo de tamaño
+    completo en `data-mainimage` (solo el UUID, hay que combinarlo con el
+    dealer_id del mismo `src` para armar la URL). Sin fotos cargadas en IDMS
+    es un caso normal, no un error: devuelve lista vacía.
+    """
+    snapshot = date.today()
+    out: List[Dict[str, Any]] = []
+    for tag in re.findall(r"<img\b[^>]*>", html, re.I):
+        src_m = re.search(r'src=["\']([^"\']+)["\']', tag, re.I)
+        main_m = re.search(r'data-mainimage=["\']([^"\']+)["\']', tag, re.I)
+        if not src_m or not main_m:
+            continue
+        src = src_m.group(1)
+        path_m = re.match(r"/invimages/([^/]+)/", src)
+        tag_dealer_id = path_m.group(1) if path_m else dealer_id
+        if not tag_dealer_id:
+            continue
+        out.append({
+            "snapshot_date": snapshot,
+            "inventory_id": inventory_id,
+            "dealer_id": tag_dealer_id,
+            "position": len(out),
+            "thumbnail_url": f"{base_url}{src}",
+            "image_url": f"{base_url}/invimages/{tag_dealer_id}/{main_m.group(1)}",
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
 def parse_report(report_id: str, content: bytes) -> List[Dict[str, Any]]:
     """Dispatcher de parsers."""
     if report_id in (IDMS_CHARGE_OFF_REPORT_ID, "2120017"):

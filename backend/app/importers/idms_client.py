@@ -563,6 +563,23 @@ class IdmsClient:
             raise RuntimeError("La búsqueda de inventario de IDMS no devolvió resultados (¿sesión caída?)")
         return r.text
 
+    def fetch_inventory_images(self, inventory_id: str) -> str:
+        """Descarga el HTML de la pestaña "Images" del detalle de un vehículo.
+
+        Cada <img> trae el thumbnail y el nombre del archivo de tamaño
+        completo (ver idms_parsers.parse_inventory_photos).
+        """
+        r = self.session.get(
+            f"{self.base_url}/pages/inventory/_inventory_images.aspx",
+            params={"qinventory_id": inventory_id},
+            headers={
+                "Referer": f"{self.base_url}/Inventory/_InventoryItem?inventoryId={inventory_id}",
+            },
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.text
+
     def _extract_execute_form(self, html: str) -> Optional[Dict[str, str]]:
         fields: Dict[str, str] = {}
         for tag in re.findall(r'<input[^>]*>', html):

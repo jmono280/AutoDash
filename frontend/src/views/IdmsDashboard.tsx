@@ -19,6 +19,7 @@ import Spinner from '@/components/ui/Spinner'
 import EmptyState from '@/components/ui/EmptyState'
 import DataTable from '@/components/ui/DataTable'
 import type { Column } from '@/components/ui/DataTable'
+import PhotoCarousel from '@/components/ui/PhotoCarousel'
 import type {
   IdmsChargeOff,
   IdmsChargeOffMonthlyDetail,
@@ -892,6 +893,16 @@ function FlagBadge({ flag }: { flag: string }) {
 }
 
 const INVENTORY_DETAIL_COLUMNS: Column<IdmsInventory>[] = [
+  {
+    key: 'photos',
+    header: 'Fotos',
+    render: (r) => (
+      <PhotoCarousel
+        photos={r.photos}
+        alt={[r.vehicle_year, r.make, r.model_trim].filter(Boolean).join(' ')}
+      />
+    ),
+  },
   { key: 'stock_number', header: 'Stock #' },
   {
     key: 'vehicle',
@@ -953,6 +964,7 @@ function InventoryTab() {
   } = useIdmsInventory()
 
   const [selectedFlags, setSelectedFlags] = useState<Set<string>>(new Set())
+  const [includeImages, setIncludeImages] = useState(false)
 
   const agingData = aging.map((a) => ({
     bucket: a.bucket,
@@ -1009,8 +1021,17 @@ function InventoryTab() {
           >
             {isExportingPdf ? 'Exportando...' : 'Descargar PDF'}
           </button>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={includeImages}
+              onChange={(e) => setIncludeImages(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-[#534AB7] focus:ring-[#ffea00]"
+            />
+            Incluir fotos (más lento)
+          </label>
           <button
-            onClick={() => sync()}
+            onClick={() => sync(includeImages)}
             disabled={isSyncing}
             className="rounded-md bg-[#ffea00] px-4 py-1.5 text-sm font-semibold text-gray-900 hover:bg-yellow-300 disabled:opacity-50"
           >
