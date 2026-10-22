@@ -2,11 +2,28 @@ import { useCallback, useState } from 'react'
 import { chatApi } from '@/models/chatApi'
 import type { ChatMessage } from '@/types/chat'
 
+const TOOL_LABELS: Array<[string, string]> = [
+  ['coverage', 'períodos disponibles'],
+  ['idms', 'datos de IDMS'],
+  ['sales', 'ventas'],
+  ['hours', 'horas del taller'],
+  ['technician', 'técnicos'],
+  ['wip', 'órdenes en curso'],
+  ['payment', 'pagos'],
+  ['call', 'llamadas'],
+]
+
+function toolLabel(tool: string): string {
+  const match = TOOL_LABELS.find(([key]) => tool.includes(key))
+  return `Consultando ${match ? match[1] : 'datos'}…`
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streamBuffer, setStreamBuffer] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activeTool, setActiveTool] = useState<string | null>(null)
 
   const send = useCallback(
     async (content: string) => {
@@ -25,6 +42,11 @@ export function useChat() {
             break
           }
           if (chunk.done) break
+          if (chunk.tool) {
+            setActiveTool(toolLabel(chunk.tool))
+            continue
+          }
+          setActiveTool(null)
           accumulated += chunk.delta
           setStreamBuffer(accumulated)
         }
@@ -35,6 +57,7 @@ export function useChat() {
           setMessages((prev) => [...prev, { role: 'assistant', content: accumulated }])
         }
         setIsLoading(false)
+        setActiveTool(null)
         setStreamBuffer('')
       }
     },
@@ -46,5 +69,5 @@ export function useChat() {
     setError(null)
   }, [])
 
-  return { messages, streamBuffer, isLoading, error, send, clear }
+  return { messages, streamBuffer, activeTool, isLoading, error, send, clear }
 }

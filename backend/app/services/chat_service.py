@@ -1,166 +1,175 @@
 from __future__ import annotations
 
 import json
-from calendar import monthrange
+import logging
 from collections.abc import AsyncGenerator
-from datetime import date, datetime, timezone
+from datetime import date
+from typing import Any
 
+from fastapi import HTTPException
+from mcp import Client
+from mcp.server import MCPServer
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI, RateLimitError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.repositories.call_analytics_repo import CallAnalyticsRepository
-from app.repositories.payment_repo import PaymentRepository
+from app.mcp.server import server as default_mcp_server
 from app.schemas.chat import ChatChunk, ChatMessage, ChatRequest, ChatResponse
-from app.services.hours_service import HoursService
-from app.services.sales_service import SalesService
-from app.services.technician_service import TechnicianService
-from app.services.wip_service import WipService
+
+logger = logging.getLogger(__name__)
+
+_MAX_TOOL_RESULT_CHARS = 12_000
 
 
 class ChatService:
+    """Agent loop: the LLM requests data through the MCP tools until it can answer."""
+
     _SYSTEM_BASE = (
-        "Eres un asistente de análisis para Automania, taller mecánico. "
+        "Eres un asistente de análisis para Automania, taller mecánico y concesionario. "
         "Ayudas a interpretar métricas operativas y financieras. "
-        "Responde de forma concisa y práctica en español."
+        "Responde de forma concisa y práctica en español.\n"
+        "Reglas:\n"
+        "- Usa SIEMPRE las herramientas para obtener datos; nunca inventes cifras.\n"
+        "- Si el usuario no indica período, llama primero a get_data_coverage y usa el período "
+        "más reciente con datos.\n"
+        "- Indica en la respuesta el período o año que usaste.\n"
+        "- Si una herramienta devuelve un error o no hay datos, dilo claramente.\n"
+        "- No anuncies qué herramientas vas a usar; responde directamente con el resultado."
     )
 
-    def __init__(self) -> None:
-        self._client = AsyncOpenAI(
+    def __init__(
+        self,
+        client: AsyncOpenAI | None = None,
+        mcp_server: MCPServer = default_mcp_server,
+    ) -> None:
+        self._client = client or AsyncOpenAI(
             api_key=settings.OPENROUTER_API_KEY,
             base_url="https://openrouter.ai/api/v1",
         )
+        self._mcp_server = mcp_server
 
-    async def _build_db_context(self, db: AsyncSession) -> str:
-        today = date.today()
-        start = today.replace(day=1)
-        end = today.replace(day=monthrange(today.year, today.month)[1])
-        lines: list[str] = [f"Período analizado: {start} → {end}"]
-
-        try:
-            kpis = await SalesService().get_kpis(db, start, end)
-            lines.append(
-                f"VENTAS: {kpis.total_cars} autos | Gross ${float(kpis.total_gross):,.0f} | "
-                f"Profit ${float(kpis.total_profit):,.0f} ({float(kpis.profit_pct):.1f}%) | "
-                f"Ticket prom ${float(kpis.avg_ticket):,.0f}"
-            )
-            trend = await SalesService().get_trend(db, start, end)
-            if trend:
-                lines.append("Trend ventas (últimos 7 días): " + " | ".join(
-                    f"{str(t.date)[5:]}:${float(t.gross_sales):,.0f}" for t in trend[-7:]
-                ))
-        except Exception:
-            pass
-
-        try:
-            hkpis = await HoursService().get_kpis(db, start, end)
-            lines.append(
-                f"HORAS: Labor ${float(hkpis.labor_dollars):,.0f} | "
-                f"Vendidas {float(hkpis.hours_sold):.1f}h | Pagadas {float(hkpis.hours_paid):.1f}h | "
-                f"Advisor Eff {float(hkpis.advisor_efficiency):.1f}% | "
-                f"Tech Proficiency {float(hkpis.technician_proficiency):.1f}%"
-            )
-        except Exception:
-            pass
-
-        try:
-            ranking = await TechnicianService().get_ranking(db, start, end, "hours_sold")
-            top = []
-            for i, t in enumerate(ranking[:8]):
-                prof = f" Prof {float(t.technician_proficiency):.0f}%" if t.technician_proficiency else ""
-                top.append(
-                    f"{i+1}.{t.technician_name} {float(t.hours_sold):.1f}h "
-                    f"${float(t.labor_dollars):,.0f}{prof}"
-                )
-            if top:
-                lines.append("TÉCNICOS (ranking por horas): " + " | ".join(top))
-        except Exception:
-            pass
-
-        try:
-            wkpis = await WipService().get_kpis(db)
-            lines.append(
-                f"WIP: {wkpis.total_ros} ROs abiertos | Avg {float(wkpis.avg_days_open):.1f} días | "
-                f"Más antiguo {wkpis.oldest_ro_days}d | Est total ${float(wkpis.total_estimated):,.0f}"
-            )
-            aging = await WipService().get_aging(db)
-            if aging:
-                lines.append("Aging WIP: " + " | ".join(f"{b.bucket}:{b.count}" for b in aging))
-            by_cat = await WipService().get_by_category(db)
-            if by_cat:
-                lines.append("WIP por categoría: " + " | ".join(
-                    f"{c.category}:{c.count}" for c in by_cat[:8]
-                ))
-            by_adv = await WipService().get_by_advisor(db)
-            if by_adv:
-                lines.append("WIP por asesor: " + " | ".join(
-                    f"{a.advisor or 'Sin asignar'}:{a.count}" for a in by_adv[:6]
-                ))
-        except Exception:
-            pass
-
-        try:
-            pkpis = await PaymentRepository().get_kpis(db, from_date=start, to_date=end)
-            lines.append(
-                f"PAGOS: {pkpis['total_payments']} transacciones | "
-                f"${float(pkpis['total_amount']):,.0f} total | "
-                f"Fees ${float(pkpis['total_fees']):,.0f} | "
-                f"Refunds ${float(pkpis['total_refunds']):,.0f}"
-            )
-            by_col = await PaymentRepository().get_by_collector(db, from_date=start, to_date=end)
-            if by_col:
-                lines.append("Pagos por cobrador: " + " | ".join(
-                    f"{c['collector']}:{c['count']} ${float(c['total_amount']):,.0f}"
-                    for c in by_col[:5]
-                ))
-            by_met = await PaymentRepository().get_by_method(db, from_date=start, to_date=end)
-            if by_met:
-                lines.append("Pagos por método: " + " | ".join(
-                    f"{m['payment_method']}:{m['count']}" for m in by_met[:5]
-                ))
-        except Exception:
-            pass
-
-        try:
-            dt_from = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
-            dt_to = datetime(end.year, end.month, end.day, 23, 59, 59, tzinfo=timezone.utc)
-            ckpis = await CallAnalyticsRepository().get_kpis(db, dt_from, dt_to)
-            total_calls = ckpis["total_calls"]
-            answered = ckpis["total_answered"]
-            pct = f"{answered/total_calls*100:.0f}%" if total_calls else "0%"
-            lines.append(
-                f"LLAMADAS: {total_calls} total | "
-                f"Inbound:{ckpis['total_inbound']} | Outbound:{ckpis['total_outbound']} | "
-                f"Contestadas:{answered} ({pct}) | Abandonadas:{ckpis['total_abandoned']} | "
-                f"Duración total:{ckpis['total_duration_seconds']//60}min"
-            )
-        except Exception:
-            pass
-
-        context = "\n".join(lines)
-        return context[: settings.OPENROUTER_MAX_CONTEXT_CHARS]
-
-    def _build_messages(
-        self, messages: list[ChatMessage], context: str
-    ) -> list[dict[str, str]]:
+    def _build_messages(self, messages: list[ChatMessage]) -> list[dict[str, Any]]:
         if len(messages) > settings.OPENROUTER_MAX_HISTORY:
             messages = messages[-settings.OPENROUTER_MAX_HISTORY :]
 
-        system = self._SYSTEM_BASE + f"\n\nDatos actuales del negocio:\n{context}"
-
+        system = self._SYSTEM_BASE + f"\nFecha de hoy: {date.today().isoformat()}."
         return [{"role": "system", "content": system}] + [
             {"role": m.role, "content": m.content} for m in messages
         ]
 
-    async def complete(self, req: ChatRequest, db: AsyncSession) -> ChatResponse:
-        context = await self._build_db_context(db)
+    @staticmethod
+    async def _openai_tools(mcp: Client) -> list[dict[str, Any]]:
+        result = await mcp.list_tools()
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description or "",
+                    "parameters": t.input_schema,
+                },
+            }
+            for t in result.tools
+        ]
+
+    @staticmethod
+    async def _call_tool(mcp: Client, name: str, raw_args: str) -> str:
         try:
-            response = await self._client.chat.completions.create(
+            args = json.loads(raw_args) if raw_args else {}
+            result = await mcp.call_tool(name, args)
+        except Exception as exc:
+            logger.exception("Chat tool %s failed", name)
+            return json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+
+        text = "\n".join(getattr(c, "text", "") for c in result.content)
+        if result.is_error:
+            logger.warning("Chat tool %s returned an error: %s", name, text)
+            return json.dumps({"error": text})
+        return text[:_MAX_TOOL_RESULT_CHARS]
+
+    async def _run(self, req: ChatRequest) -> AsyncGenerator[ChatChunk, None]:
+        """Yield tool notifications and answer deltas. OpenAI errors propagate to the caller."""
+        messages = self._build_messages(req.messages)
+        failure: Exception | None = None
+
+        async with Client(self._mcp_server) as mcp:
+            # Errors raised inside the client's task group would surface wrapped in an
+            # ExceptionGroup; capture them and re-raise once the client is closed.
+            try:
+                async for chunk in self._agent_loop(mcp, messages):
+                    yield chunk
+            except Exception as exc:
+                failure = exc
+
+        if failure is not None:
+            raise failure
+
+    async def _agent_loop(
+        self, mcp: Client, messages: list[dict[str, Any]]
+    ) -> AsyncGenerator[ChatChunk, None]:
+        max_rounds = settings.CHAT_MAX_TOOL_ITERATIONS
+        tools = await self._openai_tools(mcp)
+
+        for round_no in range(max_rounds + 1):
+            # Last round goes without tools to force a final answer.
+            use_tools = round_no < max_rounds
+            kwargs: dict[str, Any] = {"tools": tools} if use_tools else {}
+            stream = await self._client.chat.completions.create(
                 model=settings.OPENROUTER_MODEL,
-                messages=self._build_messages(req.messages, context),
+                messages=messages,
                 max_tokens=settings.OPENROUTER_MAX_TOKENS_OUT,
-                stream=False,
+                stream=True,
+                **kwargs,
             )
+
+            content = ""
+            calls: dict[int, dict[str, str]] = {}
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    content += delta.content
+                    yield ChatChunk(delta=delta.content)
+                for tc in delta.tool_calls or []:
+                    call = calls.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                    call["id"] += tc.id or ""
+                    if tc.function:
+                        call["name"] += tc.function.name or ""
+                        call["arguments"] += tc.function.arguments or ""
+
+            if not calls:
+                return
+
+            ordered = [calls[i] for i in sorted(calls)]
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": content or None,
+                    "tool_calls": [
+                        {
+                            "id": c["id"],
+                            "type": "function",
+                            "function": {"name": c["name"], "arguments": c["arguments"]},
+                        }
+                        for c in ordered
+                    ],
+                }
+            )
+            for c in ordered:
+                yield ChatChunk(tool=c["name"])
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": c["id"],
+                        "content": await self._call_tool(mcp, c["name"], c["arguments"]),
+                    }
+                )
+
+    async def complete(self, req: ChatRequest) -> ChatResponse:
+        content = ""
+        try:
+            async for chunk in self._run(req):
+                content += chunk.delta
         except RateLimitError as exc:
             raise _http_error(429, "Rate limit exceeded") from exc
         except APITimeoutError as exc:
@@ -170,36 +179,32 @@ class ChatService:
         except APIConnectionError as exc:
             raise _http_error(503, "OpenRouter unreachable") from exc
 
-        choice = response.choices[0]
         return ChatResponse(
-            message=ChatMessage(role="assistant", content=choice.message.content or ""),
-            model=response.model,
+            message=ChatMessage(role="assistant", content=content),
+            model=settings.OPENROUTER_MODEL,
         )
 
-    async def stream(self, req: ChatRequest, db: AsyncSession) -> AsyncGenerator[str, None]:
-        context = await self._build_db_context(db)
+    async def stream(self, req: ChatRequest) -> AsyncGenerator[str, None]:
         try:
-            async with await self._client.chat.completions.create(
-                model=settings.OPENROUTER_MODEL,
-                messages=self._build_messages(req.messages, context),
-                max_tokens=settings.OPENROUTER_MAX_TOKENS_OUT,
-                stream=True,
-            ) as stream_response:
-                async for chunk in stream_response:
-                    delta = chunk.choices[0].delta.content
-                    if delta is not None:
-                        yield f"data: {ChatChunk(delta=delta).model_dump_json()}\n\n"
+            async for chunk in self._run(req):
+                yield _sse(chunk)
         except RateLimitError as exc:
-            yield f"data: {json.dumps({'error': 'rate_limit', 'detail': str(exc)})}\n\n"
+            yield _sse(ChatChunk(error="rate_limit", detail=str(exc)))
         except APIStatusError as exc:
-            yield f"data: {json.dumps({'error': 'api_error', 'status': exc.status_code, 'detail': exc.message})}\n\n"
+            yield _sse(ChatChunk(error="api_error", detail=f"{exc.status_code}: {exc.message}"))
         except (APIConnectionError, APITimeoutError) as exc:
-            yield f"data: {json.dumps({'error': 'connection_error', 'detail': str(exc)})}\n\n"
+            yield _sse(ChatChunk(error="connection_error", detail=str(exc)))
+        except Exception as exc:
+            logger.exception("Chat stream failed")
+            yield _sse(ChatChunk(error="internal_error", detail=type(exc).__name__))
         finally:
-            yield f"data: {ChatChunk(delta='', done=True).model_dump_json()}\n\n"
+            yield _sse(ChatChunk(done=True))
             yield "data: [DONE]\n\n"
 
 
-def _http_error(status_code: int, detail: str) -> Exception:
-    from fastapi import HTTPException
+def _sse(chunk: ChatChunk) -> str:
+    return f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+
+
+def _http_error(status_code: int, detail: str) -> HTTPException:
     return HTTPException(status_code=status_code, detail=f"OpenRouter: {detail}")
