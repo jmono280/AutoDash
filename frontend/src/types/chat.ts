@@ -5,7 +5,6 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   messages: ChatMessage[]
-  context?: string
   stream?: boolean
 }
 
@@ -17,6 +16,7 @@ export interface ChatResponse {
 export interface ChatChunk {
   delta: string
   done: boolean
+  tool?: string
   error?: string
   detail?: string
 }

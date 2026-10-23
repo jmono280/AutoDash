@@ -3,7 +3,7 @@ import { useChat } from '@/viewmodels/useChat'
 import Spinner from '@/components/ui/Spinner'
 
 export default function ChatView() {
-  const { messages, streamBuffer, isLoading, error, send, clear } = useChat()
+  const { messages, streamBuffer, activeTool, isLoading, error, send, clear } = useChat()
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -59,8 +59,8 @@ export default function ChatView() {
       <div className="flex-1 overflow-y-auto space-y-3 pb-4 min-h-0">
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 py-16">
-            <p className="text-sm">Pregunta sobre ventas, horas, técnicos, WIP, pagos o llamadas.</p>
-            <p className="text-xs mt-1">El AI tiene acceso a todos los datos del mes actual.</p>
+            <p className="text-sm">Pregunta sobre ventas, horas, técnicos, WIP, pagos, llamadas o IDMS.</p>
+            <p className="text-xs mt-1">El asistente consulta los datos que necesita, de cualquier período.</p>
           </div>
         )}
 
@@ -89,8 +89,9 @@ export default function ChatView() {
 
         {isLoading && !streamBuffer && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm px-4 py-2.5 bg-gray-100">
+            <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm px-4 py-2.5 bg-gray-100">
               <Spinner size="sm" />
+              {activeTool && <span className="text-xs text-gray-500">{activeTool}</span>}
             </div>
           </div>
         )}

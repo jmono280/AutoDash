@@ -12,13 +12,15 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
-    context: str | None = None
     stream: bool = False
 
 
 class ChatChunk(BaseModel):
-    delta: str
+    delta: str = ""
     done: bool = False
+    tool: str | None = None
+    error: str | None = None
+    detail: str | None = None
 
 
 class ChatResponse(BaseModel):

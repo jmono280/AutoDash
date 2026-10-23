@@ -382,7 +382,33 @@ backend/
 
 ### 8. Chat IA (`/chat`)
 
-El endpoint usa **OpenRouter** (compatible con la API de OpenAI). Requiere `OPENROUTER_API_KEY` en `.env`. Soporta respuesta directa y streaming SSE.
+El endpoint usa **OpenRouter** (compatible con la API de OpenAI) con **tool calling**. Requiere `OPENROUTER_API_KEY` en `.env` y un `OPENROUTER_MODEL` que soporte tools (en el listado de modelos de OpenRouter, `supported_parameters` debe incluir `tools`).
+
+#### Arquitectura (MCP)
+
+Los datos no se inyectan en el prompt: el modelo los pide a través de un **servidor MCP** (`app/mcp/server.py`) que el chat consume en memoria.
+
+```
+POST /chat/completions → ChatService (bucle agente)
+  1. list_tools() del MCP → tools en formato OpenAI
+  2. el LLM responde con tool_calls → call_tool() → resultado JSON → vuelve al LLM
+  3. se repite hasta la respuesta final (máx. CHAT_MAX_TOOL_ITERATIONS rondas)
+```
+
+Tools disponibles (solo lectura, reutilizan los services existentes):
+
+| Dominio | Tools |
+|---|---|
+| Cobertura | `get_data_coverage` (rangos de fechas con datos por fuente + años IDMS) |
+| Ventas taller | `get_sales_kpis`, `get_sales_trend`, `get_sales_by_day_of_week` |
+| Horas / técnicos | `get_hours_kpis`, `get_technician_ranking`, `get_technician_detail` |
+| WIP | `get_wip_kpis`, `get_wip_aging`, `get_wip_by_category`, `get_wip_by_advisor`, `list_wip` |
+| Pagos / llamadas | `get_payment_kpis`, `get_payments_by_collector`, `get_payments_by_method`, `get_call_kpis` |
+| IDMS Charge Off | `get_idms_chargeoff_kpis`, `get_idms_chargeoff_overview`, `get_idms_chargeoff_monthly`, `get_idms_chargeoff_monthly_detail`, `list_idms_charge_offs` |
+| IDMS Sales | `get_idms_sales_kpis`, `get_idms_sales_monthly`, `get_idms_sales_by_salesperson`, `get_idms_sales_by_vehicle`, `list_idms_sales` |
+| IDMS Inventario | `get_idms_inventory_kpis`, `get_idms_inventory_aging`, `list_idms_inventory` |
+
+Las tools con período aceptan `from_date`/`to_date` (YYYY-MM-DD, default: mes actual); las de IDMS aceptan `year` (default: año actual). Las tools `list_idms_*` filtran (mes, vendedor, marca, días en lote…), ordenan de forma descendente y devuelven `{total, returned, items}` con máximo 50 filas y solo los campos relevantes, para no saturar el contexto del modelo. Para agregar una tool nueva, decorar una función con `@server.tool()` en `app/mcp/server.py` que delegue a un service.
 
 #### Obtener token (paso previo)
 
@@ -400,7 +426,7 @@ curl -X POST http://localhost:8001/chat/completions \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "messages": [{"role":"user","content":"¿Qué es el Gross Profit en un taller mecánico?"}]
+    "messages": [{"role":"user","content":"¿Cuántos charge-offs hubo este año?"}]
   }' | python3 -m json.tool
 ```
 
@@ -409,43 +435,30 @@ Respuesta esperada:
 {
   "message": {
     "role": "assistant",
-    "content": "El Gross Profit es la diferencia entre los ingresos por servicios y el costo directo..."
+    "content": "**Charge-offs 2026:** 128, balance original $1,119,553.52..."
   },
-  "model": "nvidia/nemotron-3-super-120b-a12b-20230311:free"
+  "model": "minimax/minimax-m3.1-flash:free"
 }
-```
-
-#### Context-aware (con datos del dashboard)
-
-El campo `context` inyecta datos reales del taller en el system prompt. El frontend puede pasar KPIs actuales para que el AI responda con información del negocio:
-
-```bash
-curl -X POST http://localhost:8001/chat/completions \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role":"user","content":"¿Cómo están las ventas del taller?"}],
-    "context": "Total Cars: 91, Gross Sales: $71740, Gross Profit: $45447, Profit%: 63.35%, Open ROs: 256, ROs >30d: 8"
-  }' | python3 -m json.tool
 ```
 
 #### Streaming SSE
 
-Con `"stream": true` la respuesta es `text/event-stream`. Cada línea tiene el formato `data: {"delta":"...","done":false}` y termina con `data: [DONE]`.
+Con `"stream": true` la respuesta es `text/event-stream`. Mientras el modelo consulta datos se emiten eventos `tool`; luego llegan los deltas de texto y al final `done` y `[DONE]`. Los errores del proveedor llegan como evento con `error` y `detail`.
 
 ```bash
 curl -N -X POST http://localhost:8001/chat/completions \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "messages": [{"role":"user","content":"explica proficiency brevemente"}],
+    "messages": [{"role":"user","content":"¿Cuántas ROs abiertas hay?"}],
     "stream": true
   }'
 ```
 
 Salida esperada:
 ```
-data: {"delta":"**Proficiency**...","done":false}
+data: {"delta":"","done":false,"tool":"get_wip_kpis"}
+data: {"delta":"Hay 55 ROs abiertas...","done":false}
 data: {"delta":"","done":true}
 data: [DONE]
 ```
@@ -472,7 +485,7 @@ curl -X POST http://localhost:8001/chat/completions \
 ## Notas
 
 - **Puerto por defecto**: siempre `--port 8001` (el 8000 puede estar ocupado por Portainer u otro servicio).
-- **Modelo IA gratuito**: `nvidia/nemotron-3-super-120b-a12b:free` vía OpenRouter. Se puede cambiar con la variable `OPENROUTER_MODEL` en `.env`.
+- **Modelo IA gratuito**: `minimax/minimax-m3.1-flash:free` vía OpenRouter (debe soportar tool calling). Se puede cambiar con la variable `OPENROUTER_MODEL` en `.env`. `CHAT_MAX_TOOL_ITERATIONS` limita las rondas de herramientas por pregunta.
 - **`labor_dollars` = 0 en técnicos**: el PDF `hours_detail` no incluye desglose de dólares por técnico, solo horas pagadas y vendidas.
 - **WIP es snapshot vivo**: cada importación de Work in Progress elimina todos los registros anteriores y carga el estado actual. No hay histórico de WIP.
 - **Re-importación idempotente**: `daily_sales`, `hours_summary` y `technician_hours` borran el período e insertan de nuevo — subir el mismo PDF dos veces no duplica datos.
@@ -506,7 +519,11 @@ pkill -f "uvicorn app.main" && pkill -f "vite"
 source venv/bin/activate && python -c "
 from app.routers.chat import router
 from app.services.chat_service import ChatService
-from app.schemas.chat import ChatRequest
+from app.mcp.server import server
 print('OK — imports limpios')
 "
+
+# Tests (chat + MCP)
+pip install -r requirements-dev.txt
+python -m pytest tests -q
 ```

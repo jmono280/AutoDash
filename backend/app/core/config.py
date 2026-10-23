@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
     UPLOAD_DIR: str = "./uploads"
     OPENROUTER_API_KEY: str
-    OPENROUTER_MODEL: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    OPENROUTER_MODEL: str = "minimax/minimax-m3.1-flash:free"
     OPENROUTER_MAX_TOKENS_OUT: int = 1024
     OPENROUTER_MAX_HISTORY: int = 10
-    OPENROUTER_MAX_CONTEXT_CHARS: int = 4000
+    CHAT_MAX_TOOL_ITERATIONS: int = 6
 
     # RingCentral — opcionales, solo requeridos para el script analitycs.py
     RC_APP_CLIENT_ID:     str = ""

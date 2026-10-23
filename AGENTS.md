@@ -44,7 +44,7 @@ La arquitectura base es **MVVM** en el frontend y **capas limpias** en el backen
 | Parser PDF | pdfplumber |
 | Parser Excel | openpyxl + pandas |
 | Base de datos | PostgreSQL 15+ |
-| AI | openai (OpenRouter) |
+| AI | openai (OpenRouter) + mcp (servidor de tools del chat) |
 | Otros | ringcentral, rich, python-dotenv |
 
 ---
@@ -188,10 +188,10 @@ UPLOAD_DIR=./uploads
 
 # OpenRouter (Chat IA)
 OPENROUTER_API_KEY=tu-api-key-de-openrouter
-OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+OPENROUTER_MODEL=minimax/minimax-m3.1-flash:free   # debe soportar tool calling
 OPENROUTER_MAX_TOKENS_OUT=512
 OPENROUTER_MAX_HISTORY=10
-OPENROUTER_MAX_CONTEXT_CHARS=500
+CHAT_MAX_TOOL_ITERATIONS=6
 
 # RingCentral (solo para scripts de analitycs)
 RC_APP_CLIENT_ID=tu-client-id
@@ -491,6 +491,8 @@ GET /wip/by-advisor
 ```
 POST /chat/completions
 ```
+
+El chat usa tool calling: el LLM consulta los datos a través del servidor MCP en `backend/app/mcp/server.py` (tools de solo lectura que delegan a los services). Si se agrega un dominio nuevo, exponer sus consultas como tools ahí. Ver `backend/README.md` §8.
 
 ### Analytics / Payment
 
