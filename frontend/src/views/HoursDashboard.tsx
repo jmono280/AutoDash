@@ -67,7 +67,7 @@ export default function HoursDashboard() {
           <h1 className="text-xl font-bold text-gray-900">Hours</h1>
           <p className="text-sm text-gray-500 mt-0.5">Shop efficiency and technician proficiency</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {kpis?.imported_at && (
             <span className="text-xs text-gray-400 whitespace-nowrap">
               Actualizado: {formatImportedAt(kpis.imported_at)}

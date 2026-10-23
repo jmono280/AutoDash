@@ -82,7 +82,7 @@ export default function TechniciansDashboard() {
           <h1 className="text-xl font-bold text-gray-900">Technicians</h1>
           <p className="text-sm text-gray-500 mt-0.5">Individual performance and rankings</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {techImportedAt && (
             <span className="text-xs text-gray-400 whitespace-nowrap">
               Actualizado: {formatImportedAt(techImportedAt)}
