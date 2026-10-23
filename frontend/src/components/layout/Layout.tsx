@@ -1,13 +1,16 @@
-import { useAuthStore } from '@/store/authStore'
+import { useAuth } from '@/viewmodels/useAuth'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const logout = useAuthStore((s) => s.logout)
+  const { logout } = useAuth()
 
-  function handleLogout() {
-    logout()
-    window.location.href = '/login'
+  async function handleLogout() {
+    try {
+      await logout()
+    } finally {
+      window.location.href = '/login'
+    }
   }
 
   return (

@@ -121,19 +121,16 @@ TOKEN=$(curl -sX POST http://localhost:8000/auth/login \
 curl http://localhost:8000/auth/me \
   -H "Authorization: Bearer $TOKEN" | jq .
 
-# Renovar token con refresh_token
-REFRESH=$(curl -sX POST http://localhost:8000/auth/login \
+# Renovar token: el refresh token viaja solo en una cookie httpOnly.
+# remember_me=true la hace persistente (`REMEMBER_ME_EXPIRE_DAYS`, 30 días por defecto); false = cookie de sesión.
+curl -sX POST http://localhost:8000/auth/login -c /tmp/automania-cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{"email":"email@email.com","password":"yourpass"}' \
-  | jq -r .refresh_token)
+  -d '{"email":"email@email.com","password":"yourpass","remember_me":true}' | jq .
 
-curl -sX POST http://localhost:8000/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d "{\"refresh_token\":\"$REFRESH\"}" | jq .
+curl -sX POST http://localhost:8000/auth/refresh -b /tmp/automania-cookies.txt | jq .
 
-# Logout (invalida el token en el cliente)
-curl -sX POST http://localhost:8000/auth/logout \
-  -H "Authorization: Bearer $TOKEN" | jq .
+# Logout (borra la cookie del refresh token)
+curl -sX POST http://localhost:8000/auth/logout -b /tmp/automania-cookies.txt | jq .
 ```
 
 ---

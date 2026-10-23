@@ -13,16 +13,13 @@ export interface User {
 export interface LoginRequest {
   email: string
   password: string
+  remember_me: boolean
 }
 
+// The refresh token is never in the body: the backend sets it as an httpOnly cookie.
 export interface TokenResponse {
   access_token: string
-  refresh_token: string
   token_type: string
-}
-
-export interface RefreshRequest {
-  refresh_token: string
 }
 
 export interface PasswordChangeData {

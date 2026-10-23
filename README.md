@@ -61,6 +61,8 @@ export VITE_API_BASE_URL=https://api.tu-dominio.com
 export VITE_API_BASE_URL=http://IP-DEL-SERVIDOR:8001
 ```
 
+> La sesión usa una cookie `Secure` para el refresh token. Si el frontend se sirve por **HTTP en un host que no sea `localhost`** (por ejemplo `http://IP-DEL-SERVIDOR`), el navegador la descarta y la sesión no se puede renovar: en ese caso define `REFRESH_COOKIE_SECURE=false` en `backend/.env`. Con HTTPS déjalo en `true`.
+
 ### 4. Construir y levantar
 
 ```bash

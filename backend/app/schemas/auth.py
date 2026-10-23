@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -14,20 +15,23 @@ class LoginRequest(BaseModel):
 
     email: str
     password: str
+    remember_me: bool = False
 
 
 class TokenResponse(BaseModel):
+    """Body returned to the client. The refresh token travels only in an httpOnly cookie."""
+
     model_config = ConfigDict(from_attributes=True)
 
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
 
 
-class RefreshRequest(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass(frozen=True)
+class SessionTokens:
+    access_token: str
     refresh_token: str
+    remember: bool
 
 
 class UserOut(BaseModel):
