@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import decode_token
+from app.core.security import ACCESS, decode_token
 from app.database import get_db
 from app.models.user import User, UserRole
 
@@ -23,7 +23,7 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    payload = decode_token(token)
+    payload = decode_token(token, ACCESS)
     if payload is None:
         raise _401
     email: str | None = payload.get("sub")

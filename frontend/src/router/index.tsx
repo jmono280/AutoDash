@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { hasRole } from '@/lib/permissions'
 import Layout from '@/components/layout/Layout'
+import Spinner from '@/components/ui/Spinner'
+import { useSessionRestore } from '@/viewmodels/useAuth'
 import HoursDashboard from '@/views/HoursDashboard'
 import ImportsView from '@/views/ImportsView'
 import LoginView from '@/views/LoginView'
@@ -28,7 +30,13 @@ function RoleRoute({
   roles?: UserRole[]
 }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const sessionChecked = useAuthStore((s) => s.sessionChecked)
   const user = useAuthStore((s) => s.user)
+
+  // Wait for the startup session restore before deciding to redirect to /login
+  if (!sessionChecked) {
+    return <FullPageSpinner />
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
@@ -41,7 +49,17 @@ function RoleRoute({
   return <Layout>{children}</Layout>
 }
 
+function FullPageSpinner() {
+  return (
+    <div className="flex h-dvh items-center justify-center bg-gray-100">
+      <Spinner size="lg" />
+    </div>
+  )
+}
+
 export default function AppRouter() {
+  useSessionRestore()
+
   return (
     <Routes>
       <Route path="/login" element={<LoginView />} />

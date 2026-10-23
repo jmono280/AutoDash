@@ -139,19 +139,16 @@ curl http://localhost:8001/auth/me \
 # Sin token → debe devolver 401
 curl -o /dev/null -w "%{http_code}" http://localhost:8001/auth/me
 
-# Refresh token
-REFRESH=$(curl -sX POST http://localhost:8001/auth/login \
+# Renovar token: el refresh token viaja solo en una cookie httpOnly.
+# remember_me=true la hace persistente (`REMEMBER_ME_EXPIRE_DAYS`, 30 días por defecto); false = cookie de sesión.
+curl -sX POST http://localhost:8001/auth/login -c /tmp/automania-cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@automania.com","password":"password123"}' \
-  | jq -r .refresh_token)
+  -d '{"email":"admin@automania.com","password":"password123","remember_me":true}' | jq .
 
-curl -sX POST http://localhost:8001/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d "{\"refresh_token\":\"$REFRESH\"}" | jq .
+curl -sX POST http://localhost:8001/auth/refresh -b /tmp/automania-cookies.txt | jq .
 
-# Logout
-curl -sX POST http://localhost:8001/auth/logout \
-  -H "Authorization: Bearer $TOKEN" | jq .
+# Logout (borra la cookie del refresh token)
+curl -sX POST http://localhost:8001/auth/logout -b /tmp/automania-cookies.txt | jq .
 ```
 
 ---

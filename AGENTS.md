@@ -182,7 +182,9 @@ POSTGRES_PORT=5432
 SECRET_KEY=cambiar-en-produccion
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
+REFRESH_TOKEN_EXPIRE_DAYS=7        # refresh token sin "Recordar sesión"
+REMEMBER_ME_EXPIRE_DAYS=30         # refresh token y cookie con "Recordar sesión"
+REFRESH_COOKIE_SECURE=true         # false solo si se sirve por HTTP en un host que no sea localhost
 CORS_ORIGINS=http://localhost,http://localhost:5173
 UPLOAD_DIR=./uploads
 
@@ -409,11 +411,16 @@ case(
 
 ### JWT flow
 
-1. Login → `access_token` (30 min) + `refresh_token` (7 días).
-2. Zustand guarda tokens en memoria, NO localStorage.
-3. Axios interceptor añade `Authorization: Bearer {token}`.
-4. Si `401` → llama `/auth/refresh` automáticamente y reintenta.
+1. Login (`email`, `password`, `remember_me`) → body con `access_token` (30 min). El `refresh_token` va SOLO en una cookie `httpOnly; Secure; SameSite=Lax` (`REFRESH_COOKIE_NAME`).
+   - `remember_me=true` → cookie persistente de `REMEMBER_ME_EXPIRE_DAYS` (30 días).
+   - `remember_me=false` → cookie de sesión (se borra al cerrar el navegador); el JWT dura `REFRESH_TOKEN_EXPIRE_DAYS`.
+2. Zustand guarda el `access_token` en memoria, NO localStorage. JavaScript nunca ve el refresh token.
+3. Axios (`withCredentials: true`) añade `Authorization: Bearer {token}`.
+4. Si `401` → llama `/auth/refresh` (con la cookie) y reintenta. `/auth/refresh` rota la cookie conservando la persistencia elegida.
 5. Si refresh falla → logout + redirect a `/login`.
+6. Al abrir la app, `useSessionRestore` intenta `/auth/refresh` antes de decidir si redirige a `/login`.
+7. `/auth/logout` borra la cookie.
+8. Los JWT llevan claim `type` (`access` | `refresh`); `get_current_user` solo acepta `access` y `/auth/refresh` solo `refresh`.
 
 ### Soft delete
 

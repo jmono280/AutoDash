@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
+    REFRESH,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -15,8 +16,7 @@ from app.repositories.user_repo import UserRepository
 from app.schemas.auth import (
     LoginRequest,
     MessageResponse,
-    RefreshRequest,
-    TokenResponse,
+    SessionTokens,
     UserOut,
 )
 
@@ -25,7 +25,7 @@ class AuthService:
     def __init__(self, repo: UserRepository | None = None):
         self.repo = repo or UserRepository()
 
-    async def login(self, db: AsyncSession, req: LoginRequest) -> TokenResponse:
+    async def login(self, db: AsyncSession, req: LoginRequest) -> SessionTokens:
         user = await self.repo.get_by_email(db, req.email)
         if not user or not verify_password(req.password, user.hashed_password):
             raise HTTPException(
@@ -37,14 +37,10 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is inactive",
             )
-        payload = {"sub": user.email}
-        return TokenResponse(
-            access_token=create_access_token(payload),
-            refresh_token=create_refresh_token(payload),
-        )
+        return _issue(user.email, remember=req.remember_me)
 
-    async def refresh(self, db: AsyncSession, req: RefreshRequest) -> TokenResponse:
-        data = decode_token(req.refresh_token)
+    async def refresh(self, db: AsyncSession, refresh_token: str | None) -> SessionTokens:
+        data = decode_token(refresh_token, REFRESH) if refresh_token else None
         if not data or "sub" not in data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -56,11 +52,8 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive",
             )
-        payload = {"sub": user.email}
-        return TokenResponse(
-            access_token=create_access_token(payload),
-            refresh_token=create_refresh_token(payload),
-        )
+        # Rotate the refresh token, keeping the persistence the user chose at login
+        return _issue(user.email, remember=bool(data.get("remember", False)))
 
     def get_me(self, current_user: User) -> UserOut:
         return UserOut.model_validate(current_user)
@@ -105,3 +98,12 @@ class AuthService:
             role=role,
         )
         return UserOut.model_validate(user)
+
+
+def _issue(email: str, *, remember: bool) -> SessionTokens:
+    payload = {"sub": email}
+    return SessionTokens(
+        access_token=create_access_token(payload),
+        refresh_token=create_refresh_token(payload, remember=remember),
+        remember=remember,
+    )

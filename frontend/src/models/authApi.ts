@@ -1,5 +1,6 @@
 import api from './api'
 import type {
+  LoginRequest,
   MessageResponse,
   PasswordChangeData,
   TokenResponse,
@@ -7,13 +8,11 @@ import type {
 } from '@/types/auth'
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    api.post<TokenResponse>('/auth/login', { email, password }).then((r) => r.data),
+  login: (data: LoginRequest) =>
+    api.post<TokenResponse>('/auth/login', data).then((r) => r.data),
 
-  refresh: (refreshToken: string) =>
-    api
-      .post<TokenResponse>('/auth/refresh', { refresh_token: refreshToken })
-      .then((r) => r.data),
+  // Uses the httpOnly refresh cookie sent by the browser
+  refresh: () => api.post<TokenResponse>('/auth/refresh').then((r) => r.data),
 
   getMe: () => api.get<User>('/auth/me').then((r) => r.data),
 

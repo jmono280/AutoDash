@@ -1,29 +1,32 @@
 import { create } from 'zustand'
-import type { TokenResponse, User } from '@/types/auth'
+import type { User } from '@/types/auth'
 
+// The access token lives only in memory. The refresh token is an httpOnly cookie
+// managed by the backend, so JavaScript never sees it.
 interface AuthState {
   user: User | null
   accessToken: string | null
-  refreshToken: string | null
   // computed
   isAuthenticated: boolean
+  // true once the startup attempt to restore the session (cookie refresh) has finished
+  sessionChecked: boolean
   // actions
-  login: (tokens: TokenResponse, user: User) => void
+  login: (accessToken: string, user: User) => void
   logout: () => void
-  setTokens: (accessToken: string, refreshToken: string) => void
+  setAccessToken: (accessToken: string) => void
+  markSessionChecked: () => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
-  refreshToken: null,
   isAuthenticated: false,
+  sessionChecked: false,
 
-  login: (tokens, user) =>
+  login: (accessToken, user) =>
     set({
       user,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken,
       isAuthenticated: true,
     }),
 
@@ -31,10 +34,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
     }),
 
-  setTokens: (accessToken, refreshToken) =>
-    set({ accessToken, refreshToken }),
+  setAccessToken: (accessToken) => set({ accessToken }),
+
+  markSessionChecked: () => set({ sessionChecked: true }),
 }))

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useAuthStore } from '@/store/authStore'
+import { useAuth } from '@/viewmodels/useAuth'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const logout = useAuthStore((s) => s.logout)
+  const { logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { pathname } = useLocation()
 
@@ -23,9 +23,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [sidebarOpen])
 
-  function handleLogout() {
-    logout()
-    window.location.href = '/login'
+  async function handleLogout() {
+    try {
+      await logout()
+    } finally {
+      window.location.href = '/login'
+    }
   }
 
   return (

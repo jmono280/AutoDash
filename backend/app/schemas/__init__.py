@@ -1,4 +1,4 @@
-from .auth import LoginRequest, RefreshRequest, TokenResponse, UserOut
+from .auth import LoginRequest, SessionTokens, TokenResponse, UserOut
 from .daily_sales import DailySalesBase, DailySalesOut, DayOfWeekStats, SalesKpisOut, TrendPoint
 from .hours import HoursKpisOut, HoursSummaryOut
 from .imports import ImportResultOut
@@ -7,7 +7,7 @@ from .work_in_progress import AdvisorGroup, AgingBucket, CategoryGroup, Page, Wi
 
 __all__ = [
     "LoginRequest",
-    "RefreshRequest",
+    "SessionTokens",
     "TokenResponse",
     "UserOut",
     "DailySalesBase",

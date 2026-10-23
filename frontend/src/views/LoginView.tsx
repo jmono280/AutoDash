@@ -10,12 +10,13 @@ import Spinner from '@/components/ui/Spinner'
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
+  rememberMe: z.boolean(),
 })
 
 type FormData = z.infer<typeof schema>
 
 export default function LoginView() {
-  const { login, isAuthenticated, isLoading } = useAuth()
+  const { login, isAuthenticated, sessionChecked, isLoading } = useAuth()
   const navigate = useNavigate()
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -23,7 +24,18 @@ export default function LoginView() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) })
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { rememberMe: false },
+  })
+
+  if (!sessionChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-200">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />
@@ -34,7 +46,7 @@ export default function LoginView() {
   async function onSubmit(data: FormData) {
     setServerError(null)
     try {
-      await login(data.email, data.password)
+      await login(data.email, data.password, data.rememberMe)
       navigate('/', { replace: true })
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -97,6 +109,17 @@ export default function LoginView() {
                 <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
               )}
             </div>
+
+            {/* Remember me */}
+            <label htmlFor="rememberMe" className="flex items-center gap-2 text-sm text-gray-700 select-none">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                {...register('rememberMe')}
+                className="h-4 w-4 rounded border-gray-300 accent-[#ffea00]"
+              />
+              Recordar sesión
+            </label>
 
             {/* Server error */}
             {serverError && (
