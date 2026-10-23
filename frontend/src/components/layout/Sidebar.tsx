@@ -54,7 +54,12 @@ const NAV_SECTIONS: NavSection[] = [
   }
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  open: boolean
+  onClose: () => void
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user)
 
   const visibleSections = NAV_SECTIONS
@@ -65,12 +70,26 @@ export default function Sidebar() {
     .filter((section) => section.items.length > 0)
 
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col bg-white border-r border-gray-200">
-      <div className="px-5 py-4 border-b border-gray-800 bg-gray-900">
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-white border-r border-gray-200 shadow-xl transition-transform duration-200 ease-out lg:static lg:z-auto lg:w-56 lg:flex-shrink-0 lg:translate-x-0 lg:shadow-none ${
+        open ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
+      <div className="h-14 flex-shrink-0 flex items-center justify-between px-5 border-b border-gray-800 bg-gray-900">
         <span className="text-base font-bold tracking-tight text-[#ffea00]">Automania</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar menú"
+          className="lg:hidden -mr-2 p-2 rounded-md text-gray-300 hover:text-[#ffea00] hover:bg-gray-800 transition-colors"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-4">
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {visibleSections.map((section) => (
           <div key={section.title} className="space-y-1">
             <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -83,7 +102,7 @@ export default function Sidebar() {
                   to={to}
                   end={exact}
                   className={({ isActive }) =>
-                    `flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    `flex items-center px-3 py-2.5 lg:py-2 rounded-md text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-yellow-50 text-gray-900 font-semibold border-l-2 border-[#ffea00]'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-2 border-transparent'

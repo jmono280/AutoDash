@@ -78,7 +78,7 @@ export default function WorkInProgressDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Work in Progress</h1>
           <p className="text-sm text-gray-500 mt-0.5">Live snapshot of all open repair orders</p>
